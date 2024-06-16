@@ -1,26 +1,23 @@
 use std::path::Path;
 use std::process::Command;
 
-pub fn open_in_explorer(export_path: &str) -> std::io::Result<()> {
-    let path = Path::new(export_path);
-    let parent_folder = path
-        .parent()
-        .unwrap_or_else(|| Path::new("No parent directory found"));
+use crate::tts::constants::EXPORT_FOLDER_NAME;
 
-    let os_type = std::env::consts::OS;
-    let result = match os_type {
-        "windows" => Command::new("explorer")
-            .arg(parent_folder.to_str().unwrap())
-            .status(),
-        "macos" => Command::new("open").arg(path.to_str().unwrap()).status(),
-        "linux" => Command::new("xdg-open")
-            .arg(path.to_str().unwrap())
-            .status(),
-        _ => Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Unsupported OS",
-        )),
+pub fn open_in_export_folder() -> std::io::Result<()> {
+    // open the export folder from current directory
+    let export_folder = Path::new(EXPORT_FOLDER_NAME);
+
+    // Use the system's default command to open the folder in the file explorer
+    let command = if cfg!(target_os = "windows") {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
     };
 
-    result.map(|_| ())
+    Command::new(command)
+        .arg(export_folder.to_str().unwrap())
+        .status()
+        .map(|_| ())
 }

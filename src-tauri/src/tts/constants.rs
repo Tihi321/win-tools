@@ -1,1 +1,1 @@
-pub const VOICE: &str = "en-US-EmmaMultilingualNeural";
+pub const EXPORT_FOLDER_NAME: &str = "export";

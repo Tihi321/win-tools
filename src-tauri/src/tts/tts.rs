@@ -2,23 +2,34 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 
-use super::constants::VOICE;
 use msedge_tts::{
     tts::{
         client::{connect, SynthesizedAudio},
-        stream::SynthesizedResponse,
         SpeechConfig,
     },
     voice::{get_voices_list, Voice},
 };
 
+use crate::tts::constants::EXPORT_FOLDER_NAME;
+
 fn get_voice(name: &str) -> Result<Voice, Box<dyn std::error::Error>> {
-    let voices = get_voices_list()?;
+    let voices = get_voices_list().unwrap();
     let voice = voices
         .into_iter()
         .find(|voice| voice.short_name.as_deref() == Some(name))
         .ok_or_else(|| "Voice not found")?;
     Ok(voice)
+}
+
+pub fn get_voices_list_names() -> Vec<(String, String)> {
+    let voices_list = get_voices_list().unwrap();
+    // map and return short_name and locale
+    let voices = voices_list
+        .into_iter()
+        .map(|voice| (voice.short_name.unwrap(), voice.locale.unwrap()))
+        .collect::<Vec<(String, String)>>();
+
+    voices
 }
 
 fn get_audio_stream(
@@ -32,12 +43,16 @@ fn get_audio_stream(
     Ok(audio_stream)
 }
 
-pub fn generate_tts_synthesis(text: &str, name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let audio_stream = get_audio_stream(text, VOICE)?;
+pub fn generate_tts_synthesis(
+    text: &str,
+    name: &str,
+    voice: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let audio_stream = get_audio_stream(text, voice)?;
 
     // Save the audio bytes to a file
-    let mut path = PathBuf::from("export");
-    std::fs::create_dir_all(&path)?; // This line creates the "export" directory if it does not exist
+    let mut path = PathBuf::from(EXPORT_FOLDER_NAME);
+    std::fs::create_dir_all(&path).unwrap(); // This line creates the "export" directory if it does not exist
     path.push(format!("{}.mp3", name));
     let mut file = File::create(path)?;
     file.write_all(&audio_stream.audio_bytes)?;
