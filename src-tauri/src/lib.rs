@@ -4,29 +4,31 @@ mod utils;
 
 use disk::disk::open_in_export_folder;
 use tauri::{ipc::InvokeBody, Manager};
-use tts::tts::{generate_tts_synthesis, get_voices_list_names};
-use utils::index::create_window;
+use tts::tts::{generate_tts_synthesis, get_voices_list_names, save_voices_list};
+use utils::{constants::WINDOW_LABEL, index::create_window};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    println!("Start");
-
     let _ = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .setup(move |app| {
             let _ = create_window(&app).unwrap();
-
-            println!("started ");
             Ok(())
         })
         .invoke_handler(move |invoke| {
             let invoke_message = invoke.message.clone();
+            let headers = invoke_message.headers().clone();
+
+            // Check if headers map is empty
+            if headers.is_empty() {
+                // Headers are empty, ignore this command
+                return true; // Assuming returning true is appropriate for ignoring the command
+            }
+
             let command = invoke_message.command();
             let payload = invoke_message.payload().clone();
-            let current_webview = invoke_message.webview().clone();
-            let app_handle_instance = current_webview.app_handle().clone();
-            let window_label = current_webview.label();
+            let app_handle_instance = invoke_message.webview().app_handle().clone();
 
             match command {
                 "create_audio_from_text" => {
@@ -41,9 +43,6 @@ pub fn run() {
                             }
                             _ => println!("Missing or invalid parameters"),
                         }
-
-                        let _ =
-                            app_handle_instance.emit_to(window_label, "create_audio_done", true);
                     }
                     true
                 }
@@ -60,15 +59,26 @@ pub fn run() {
                             }
                             _ => println!("Missing or invalid parameters"),
                         }
-
-                        let _ =
-                            app_handle_instance.emit_to(window_label, "create_audio_done", true);
                     }
                     true
                 }
-                "voices_list" => {
+                "get_voices_list" => {
                     let voices = get_voices_list_names();
-                    let _ = app_handle_instance.emit_to(window_label, "voices_list", voices);
+                    let _ = app_handle_instance.emit_to(
+                        WINDOW_LABEL,
+                        "get_voices_list_response",
+                        voices,
+                    );
+                    true
+                }
+                "refresh_voices_list" => {
+                    save_voices_list();
+                    let voices = get_voices_list_names();
+                    let _ = app_handle_instance.emit_to(
+                        WINDOW_LABEL,
+                        "get_voices_list_response",
+                        voices,
+                    );
                     true
                 }
                 "open_export_folder" => {

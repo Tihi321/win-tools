@@ -1,6 +1,6 @@
-use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use std::{fs::File, io::BufRead};
 
 use msedge_tts::{
     tts::{
@@ -10,7 +10,7 @@ use msedge_tts::{
     voice::{get_voices_list, Voice},
 };
 
-use crate::tts::constants::EXPORT_FOLDER_NAME;
+use crate::tts::constants::{CONFIG_FOLDER_NAME, EXPORT_FOLDER_NAME, VOICES_FILE_NAME};
 
 fn get_voice(name: &str) -> Result<Voice, Box<dyn std::error::Error>> {
     let voices = get_voices_list().unwrap();
@@ -21,7 +21,7 @@ fn get_voice(name: &str) -> Result<Voice, Box<dyn std::error::Error>> {
     Ok(voice)
 }
 
-pub fn get_voices_list_names() -> Vec<(String, String)> {
+pub fn fetch_voices_list() -> Vec<(String, String)> {
     let voices_list = get_voices_list().unwrap();
     // map and return short_name and locale
     let voices = voices_list
@@ -30,6 +30,42 @@ pub fn get_voices_list_names() -> Vec<(String, String)> {
         .collect::<Vec<(String, String)>>();
 
     voices
+}
+
+pub fn save_voices_list() {
+    let voices = fetch_voices_list();
+    // save to file
+    let mut path = PathBuf::from(CONFIG_FOLDER_NAME);
+    std::fs::create_dir_all(&path).unwrap(); // This line creates the "config" directory if it does not exist
+    path.push(VOICES_FILE_NAME);
+    let mut file = File::create(path).unwrap();
+    for (name, locale) in &voices {
+        file.write_all(format!("{} {}\n", name, locale).as_bytes())
+            .unwrap();
+    }
+}
+
+pub fn get_voices_list_names() -> Vec<(String, String)> {
+    // check if file exists, if not fetch and save
+    let mut path = PathBuf::from(CONFIG_FOLDER_NAME);
+    path.push(VOICES_FILE_NAME);
+    if !path.exists() {
+        return vec![];
+    }
+    // now read from file
+    let file = File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let voices = reader
+        .lines()
+        .map(|line| {
+            let line = line.unwrap();
+            let mut parts = line.split_whitespace();
+            let name = parts.next().unwrap().to_string();
+            let locale = parts.next().unwrap().to_string();
+            (name, locale)
+        })
+        .collect::<Vec<(String, String)>>();
+    return voices;
 }
 
 fn get_audio_stream(

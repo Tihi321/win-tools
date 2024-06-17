@@ -2,14 +2,14 @@ import { createEffect, createSignal, createMemo } from "solid-js";
 import { styled } from "solid-styled-components";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { get, map, filter, includes, isEqual } from "lodash";
+import { get, map, filter, includes, isEqual, isEmpty } from "lodash";
 import { VOICES_LIST } from "./constants";
 import { TextInput } from "./components/inputs/TextInput";
 import { Button } from "./components/inputs/Button";
 import { Checkbox } from "./components/inputs/Checkbox";
 import { FolderIcon } from "./components/icons/FolderIcon";
 import { openFile } from "./hooks/file";
-import { loadLocalLanguage, saveLocalLanguage } from "./hooks/local";
+import { loadLocalLanguage, saveLocalLanguage, loadUsedFile, saveUseFile } from "./hooks/local";
 
 const Container = styled("div")`
   margin: 0;
@@ -102,16 +102,18 @@ export const App = () => {
     filter(voices(), (voice) => includes(VOICES_LIST, voice.lang))
   );
 
+  const voicesAvailable = createMemo(() => !isEmpty(voices()));
+
   createEffect(async () => {
     try {
-      await invoke("voices_list", {});
+      await invoke("get_voices_list", {});
     } catch (error) {
       console.error("Error invoking voices_list command:", error);
     }
   });
 
   createEffect(() => {
-    listen("voices_list", (event: any) => {
+    listen("get_voices_list_response", (event: any) => {
       const voices_list: VoicesList = map(get(event, ["payload"], []), (voice) => ({
         name: get(voice, [0], ""),
         lang: get(voice, [1], ""),
@@ -134,17 +136,22 @@ export const App = () => {
     setSelectedVoice(language);
   });
 
-  const onCreateAudio = async () => {
+  createEffect(() => {
+    const useFile = loadUsedFile();
+    setUseFile(useFile);
+  });
+
+  const onCreateAudio = () => {
     try {
       if (useFile()) {
-        await invoke("create_audio_from_file", {
+        invoke("create_audio_from_file", {
           file: file(),
           name: name() || "output",
           voice: selectedVoice(),
         });
         return;
       }
-      await invoke("create_audio_from_text", {
+      invoke("create_audio_from_text", {
         text: text(),
         name: name() || "output",
         voice: selectedVoice(),
@@ -154,27 +161,42 @@ export const App = () => {
     }
   };
 
-  const onOpenExportFolder = async () => {
+  const onOpenExportFolder = () => {
     try {
-      await invoke("open_export_folder", {});
+      invoke("open_export_folder", {});
     } catch (error) {
       console.error("Error invoking open_export_folder command:", error);
     }
   };
 
-  const onOpenFile = async () => {
+  const onOpenFile = () => {
     try {
-      const selected = (await openFile()) as string;
-      setFile(get(selected, ["path"]));
+      openFile().then((selected) => setFile(get(selected, ["path"])));
     } catch (error) {
       console.error("Error opening file dialog:", error);
+    }
+  };
+
+  const fetchVoices = () => {
+    console.log("Fetching voices list");
+    try {
+      invoke("refresh_voices_list", {});
+    } catch (error) {
+      console.error("Error invoking open_export_folder command:", error);
     }
   };
 
   return (
     <Container>
       <Main>
-        {useFile() && (
+        {!voicesAvailable() && (
+          <FileContainer>
+            <FilePathButton datatype="secondary" onClick={fetchVoices}>
+              Get Voices
+            </FilePathButton>
+          </FileContainer>
+        )}
+        {voicesAvailable() && useFile() && (
           <FileContainer>
             <FilePathButton datatype="secondary" onClick={onOpenFile}>
               <FolderIcon />
@@ -182,7 +204,7 @@ export const App = () => {
             <FilePath>{file()}</FilePath>
           </FileContainer>
         )}
-        {!useFile() && (
+        {voicesAvailable() && !useFile() && (
           <Textarea
             value={text()}
             onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
@@ -216,6 +238,7 @@ export const App = () => {
           value={useFile()}
           onChange={(value) => {
             setUseFile(value);
+            saveUseFile(value);
           }}
           label="Use file"
         />
