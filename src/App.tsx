@@ -1,7 +1,6 @@
 import { createEffect, createSignal, createMemo } from "solid-js";
 import { styled } from "solid-styled-components";
-import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/core";
+import { listen, emit } from "@tauri-apps/api/event";
 import { get, map, filter, includes, isEqual, isEmpty } from "lodash";
 import { VOICES_LIST } from "./constants";
 import { TextInput } from "./components/inputs/TextInput";
@@ -106,14 +105,14 @@ export const App = () => {
 
   createEffect(async () => {
     try {
-      await invoke("get_voices_list", {});
+      emit("get_voices_list", {});
     } catch (error) {
       console.error("Error invoking voices_list command:", error);
     }
   });
 
-  createEffect(() => {
-    listen("get_voices_list_response", (event: any) => {
+  createEffect(async () => {
+    const unlisten = await listen("get_voices_list_response", (event: any) => {
       const voices_list: VoicesList = map(get(event, ["payload"], []), (voice) => ({
         name: get(voice, [0], ""),
         lang: get(voice, [1], ""),
@@ -121,14 +120,18 @@ export const App = () => {
 
       setVoices(voices_list);
     });
+
+    return () => unlisten();
   });
 
-  createEffect(() => {
-    listen("create_audio_done", () => {
+  createEffect(async () => {
+    const unlisten = await listen("create_audio_response", () => {
       setName("");
       setText("");
       setFile("");
     });
+
+    return () => unlisten();
   });
 
   createEffect(() => {
@@ -142,31 +145,23 @@ export const App = () => {
   });
 
   const onCreateAudio = () => {
-    try {
-      if (useFile()) {
-        invoke("create_audio_from_file", {
-          file: file(),
-          name: name() || "output",
-          voice: selectedVoice(),
-        });
-        return;
-      }
-      invoke("create_audio_from_text", {
+    if (useFile()) {
+      emit("create_audio_from_file", {
+        file: file(),
+        name: name() || "output",
+        voice: selectedVoice(),
+      });
+    } else {
+      emit("create_audio_from_text", {
         text: text(),
         name: name() || "output",
         voice: selectedVoice(),
       });
-    } catch (error) {
-      console.error("Error invoking create_audio_from_text command:", error);
     }
   };
 
   const onOpenExportFolder = () => {
-    try {
-      invoke("open_export_folder", {});
-    } catch (error) {
-      console.error("Error invoking open_export_folder command:", error);
-    }
+    emit("open_export_folder", {});
   };
 
   const onOpenFile = () => {
@@ -178,12 +173,7 @@ export const App = () => {
   };
 
   const fetchVoices = () => {
-    console.log("Fetching voices list");
-    try {
-      invoke("refresh_voices_list", {});
-    } catch (error) {
-      console.error("Error invoking open_export_folder command:", error);
-    }
+    emit("refresh_voices_list", {});
   };
 
   return (

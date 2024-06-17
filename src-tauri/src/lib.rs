@@ -3,9 +3,25 @@ mod tts;
 mod utils;
 
 use disk::disk::open_in_export_folder;
-use tauri::{ipc::InvokeBody, Manager};
+use serde::{Deserialize, Serialize};
+use serde_json::{self};
+use tauri::Manager;
 use tts::tts::{generate_tts_synthesis, get_voices_list_names, save_voices_list};
 use utils::{constants::WINDOW_LABEL, index::create_window};
+
+#[derive(Serialize, Deserialize)]
+pub struct AudioText {
+    pub(crate) text: String,
+    pub(crate) name: String,
+    pub(crate) voice: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AudioFile {
+    pub(crate) file: String,
+    pub(crate) name: String,
+    pub(crate) voice: String,
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -13,83 +29,79 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .setup(move |app| {
+            let app_handle = app.app_handle();
+            let get_voices_handle = app_handle.clone();
+            let refresh_hvoices_handle = app_handle.clone();
+            let create_text_hvoices_handle = app_handle.clone();
+            let create_file_hvoices_handle = app_handle.clone();
+
             let _ = create_window(&app).unwrap();
+
+            app.listen_any("get_voices_list", move |_| {
+                let voices = get_voices_list_names();
+                let window = get_voices_handle.get_webview_window(WINDOW_LABEL).unwrap();
+                window
+                    .emit_to(WINDOW_LABEL, "get_voices_list_response", voices)
+                    .expect("Failed to emit event");
+            });
+            app.listen_any("refresh_voices_list", move |_| {
+                save_voices_list();
+                let voices = get_voices_list_names();
+                let window = refresh_hvoices_handle
+                    .get_webview_window(WINDOW_LABEL)
+                    .unwrap();
+                window
+                    .emit_to(WINDOW_LABEL, "get_voices_list_response", voices)
+                    .expect("Failed to emit event");
+            });
+            app.listen_any("create_audio_from_text", move |event| {
+                let value = event.payload();
+                match serde_json::from_str::<AudioText>(value) {
+                    Ok(audio_payload) => {
+                        let text = audio_payload.text;
+                        let name = audio_payload.name;
+                        let voice = audio_payload.voice;
+
+                        generate_tts_synthesis(text.as_str(), name.as_str(), voice.as_str())
+                            .unwrap();
+
+                        let window = create_text_hvoices_handle
+                            .get_webview_window(WINDOW_LABEL)
+                            .unwrap();
+                        window
+                            .emit_to(WINDOW_LABEL, "create_audio_response", true)
+                            .expect("Failed to emit event");
+                    }
+                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
+                }
+            });
+            app.listen_any("create_audio_from_file", move |event| {
+                let value = event.payload();
+                match serde_json::from_str::<AudioFile>(value) {
+                    Ok(audio_payload) => {
+                        let file = audio_payload.file;
+                        let name = audio_payload.name;
+                        let voice = audio_payload.voice;
+
+                        let text = std::fs::read_to_string(file).unwrap();
+                        generate_tts_synthesis(text.as_str(), name.as_str(), voice.as_str())
+                            .unwrap();
+
+                        let window = create_file_hvoices_handle
+                            .get_webview_window(WINDOW_LABEL)
+                            .unwrap();
+
+                        window
+                            .emit_to(WINDOW_LABEL, "create_audio_response", true)
+                            .expect("Failed to emit event");
+                    }
+                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
+                }
+            });
+            app.listen_any("open_export_folder", move |_| {
+                open_in_export_folder().unwrap();
+            });
             Ok(())
-        })
-        .invoke_handler(move |invoke| {
-            let invoke_message = invoke.message.clone();
-            let headers = invoke_message.headers().clone();
-
-            // Check if headers map is empty
-            if headers.is_empty() {
-                // Headers are empty, ignore this command
-                return true; // Assuming returning true is appropriate for ignoring the command
-            }
-
-            let command = invoke_message.command();
-            let payload = invoke_message.payload().clone();
-            let app_handle_instance = invoke_message.webview().app_handle().clone();
-
-            match command {
-                "create_audio_from_text" => {
-                    if let InvokeBody::Json(json_value) = payload {
-                        let text = json_value.get("text").and_then(|v| v.as_str());
-                        let name = json_value.get("name").and_then(|v| v.as_str());
-                        let voice = json_value.get("voice").and_then(|v| v.as_str());
-
-                        match (text, name, voice) {
-                            (Some(text), Some(name), Some(voice)) => {
-                                generate_tts_synthesis(text, name, voice).unwrap();
-                            }
-                            _ => println!("Missing or invalid parameters"),
-                        }
-                    }
-                    true
-                }
-                "create_audio_from_file" => {
-                    if let InvokeBody::Json(json_value) = payload {
-                        let file = json_value.get("file").and_then(|v| v.as_str());
-                        let name = json_value.get("name").and_then(|v| v.as_str());
-                        let voice = json_value.get("voice").and_then(|v| v.as_str());
-
-                        match (file, name, voice) {
-                            (Some(file), Some(name), Some(voice)) => {
-                                let text = std::fs::read_to_string(file).unwrap();
-                                generate_tts_synthesis(text.as_str(), name, voice).unwrap();
-                            }
-                            _ => println!("Missing or invalid parameters"),
-                        }
-                    }
-                    true
-                }
-                "get_voices_list" => {
-                    let voices = get_voices_list_names();
-                    let _ = app_handle_instance.emit_to(
-                        WINDOW_LABEL,
-                        "get_voices_list_response",
-                        voices,
-                    );
-                    true
-                }
-                "refresh_voices_list" => {
-                    save_voices_list();
-                    let voices = get_voices_list_names();
-                    let _ = app_handle_instance.emit_to(
-                        WINDOW_LABEL,
-                        "get_voices_list_response",
-                        voices,
-                    );
-                    true
-                }
-                "open_export_folder" => {
-                    open_in_export_folder().unwrap();
-                    true
-                }
-                _ => {
-                    println!("Unhandled command: {}", command);
-                    true
-                }
-            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
