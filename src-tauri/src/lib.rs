@@ -27,7 +27,6 @@ pub struct AudioFile {
 pub fn run() {
     let _ = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
         .setup(move |app| {
             let app_handle = app.app_handle();
             let get_voices_handle = app_handle.clone();
