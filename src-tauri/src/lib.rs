@@ -38,7 +38,13 @@ pub fn run() {
             let _ = create_window(&app).unwrap();
 
             app.listen("update_title", move |event| {
-                let title = event.payload();
+                let mut payload = event.payload().to_string();
+                payload.pop();
+                let title = if !payload.is_empty() {
+                    &payload[1..]
+                } else {
+                    ""
+                };
 
                 let _ = update_window_title
                     .get_webview_window(WINDOW_LABEL)

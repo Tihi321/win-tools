@@ -16,11 +16,7 @@ export const Button = styled("button")`
   background-color: ${(props) => {
     switch (props?.datatype) {
       case "secondary":
-        return props?.theme?.colors.ui3;
-      case "tertiary":
-        return props?.theme?.colors.ui2;
-      case "warning":
-        return props?.theme?.colors.ui4;
+        return props?.theme?.colors.ui1;
 
       default:
         return props?.theme?.colors.ui1;
@@ -29,7 +25,7 @@ export const Button = styled("button")`
   border-radius: 6px;
   border-width: 2px;
   border-style: solid;
-  border-color: ${(props) => props?.theme?.colors.ui6};
+  border-color: ${(props) => props?.theme?.colors.ui2};
   transition: opacity 0.3s ease, background-color 0.3s ease;
 
   &:hover,
@@ -39,7 +35,7 @@ export const Button = styled("button")`
   }
 
   &:hover {
-    filter: ${(props) => `drop-shadow(2px 1px 2px ${props?.theme?.colors.ui6})`};
+    filter: ${(props) => `drop-shadow(2px 1px 2px ${props?.theme?.colors.ui2})`};
   }
 
   &:disabled {

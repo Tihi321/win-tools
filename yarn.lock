@@ -260,7 +260,7 @@
 "@esbuild/linux-arm@0.21.5":
   version "0.21.5"
   resolved "https://registry.yarnpkg.com/@esbuild/linux-arm/-/linux-arm-0.21.5.tgz#fc6fd11a8aca56c1f6f3894f2bea0479f8f626b9"
-  integrity sha512-bPb5AHZtbeNGjCKVZ9UGqGwo8EUu4cLq68E95A53KlxAPRmUyYv2D6F0uUI65XisGOL1hBP5mTronbgo+0bFcA==
+  integrity sha512-bPb5AHZtbeNGjCKVZ9UGqGwo8EUu4cLq68E95A53KlxAPRmUyYv2D6F0uui25XisGOL1hBP5mTronbgo+0bFcA==
 
 "@esbuild/linux-ia32@0.21.5":
   version "0.21.5"
@@ -359,6 +359,11 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@popperjs/core@^2.11.8":
+  version "2.11.8"
+  resolved "https://registry.yarnpkg.com/@popperjs/core/-/core-2.11.8.tgz#6b79032e760a0899cd4204710beede972a3a185f"
+  integrity sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==
+
 "@rollup/rollup-android-arm-eabi@4.18.0":
   version "4.18.0"
   resolved "https://registry.yarnpkg.com/@rollup/rollup-android-arm-eabi/-/rollup-android-arm-eabi-4.18.0.tgz#bbd0e616b2078cd2d68afc9824d1fadb2f2ffd27"
@@ -438,6 +443,74 @@
   version "4.18.0"
   resolved "https://registry.yarnpkg.com/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.18.0.tgz#5d694d345ce36b6ecf657349e03eb87297e68da4"
   integrity sha512-UOo5FdvOL0+eIVTgS4tIdbW+TtnBLWg1YBCcU2KWM7nuNwRz9bksDX1bekJJCpu25N1DVWaCwnT39dVQxzqS8g==
+
+"@suid/base@0.9.0":
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/@suid/base/-/base-0.9.0.tgz#50ba6aa6902d6197e50156111abe44c8884f965c"
+  integrity sha512-uj6kYkPB2/79iKJQSIKrSqxA0H0/1vcxxsyclHRMdU/RL3FVGUfasmAMJR7E6YVLi78A+fsabBKeu/yQSrr/Hg==
+  dependencies:
+    "@popperjs/core" "^2.11.8"
+    "@suid/css" "0.4.0"
+    "@suid/system" "0.11.0"
+    "@suid/types" "0.6.0"
+    "@suid/utils" "0.9.0"
+    clsx "^2.1.0"
+
+"@suid/css@0.4.0":
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/@suid/css/-/css-0.4.0.tgz#e48bc2172225cf11361cb9568a885bd40f03311f"
+  integrity sha512-yzHAlf1CVi7n0SvUrMgs8Z49UiS9669+td1w1frekhRQuRbkXhHoyJkvovaDVJlWRmCPA8Q0f1OTr0uDCUg9mQ==
+
+"@suid/icons-material@^0.7.0":
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/@suid/icons-material/-/icons-material-0.7.0.tgz#4942cddf99b2642102024822235b94d3ae358bf5"
+  integrity sha512-d40gG5GBE/UrUYvVkf53zzhmNIV9eb4z52DUON2fGidprf/LkD4WdamwHKS1QfElvHnuaOci1VjV6cHdblzPBQ==
+  dependencies:
+    "@suid/material" "0.16.0"
+
+"@suid/material@0.16.0", "@suid/material@^0.16.0":
+  version "0.16.0"
+  resolved "https://registry.yarnpkg.com/@suid/material/-/material-0.16.0.tgz#340c51a70d9dd7b85faf67eaf9e8a20fa5b8b243"
+  integrity sha512-qr/xdkl8Ekp+GO4m5VhXLi/CBrmUXALc8MP75p8y+0ZMXB+RLwSsZK1z1i9EjmEsmR5RC6G9VFJPWrpMI7j32A==
+  dependencies:
+    "@suid/base" "0.9.0"
+    "@suid/css" "0.4.0"
+    "@suid/system" "0.11.0"
+    "@suid/types" "0.6.0"
+    "@suid/utils" "0.9.0"
+    clsx "^2.1.0"
+
+"@suid/styled-engine@0.7.0":
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/@suid/styled-engine/-/styled-engine-0.7.0.tgz#03c3bbff3f417bf3fcd0b726ad8afdec46769b7e"
+  integrity sha512-yaanC2KI5yl8QrKL2e9Y89XJvqd3wrjZUCNctWWUF+1uypmoXcoP6N6MQvzr3+78fT0iLeEfn3b/lXl8x0+jAw==
+  dependencies:
+    "@suid/css" "0.4.0"
+    "@suid/utils" "0.9.0"
+
+"@suid/system@0.11.0":
+  version "0.11.0"
+  resolved "https://registry.yarnpkg.com/@suid/system/-/system-0.11.0.tgz#e00a5cba1dc8e41a33ad56ac39cdd889ee6f80ed"
+  integrity sha512-DVywaHMG97I7j0KjgOXTQlf6SG72sA5QSsNJ3RkED+dsjvHjkVgBbOkKNR04RHlwlItbR2Wdhu7ZlREvSsneeQ==
+  dependencies:
+    "@suid/css" "0.4.0"
+    "@suid/styled-engine" "0.7.0"
+    "@suid/types" "0.6.0"
+    "@suid/utils" "0.9.0"
+    clsx "^2.1.0"
+    csstype "^3.1.3"
+
+"@suid/types@0.6.0":
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/@suid/types/-/types-0.6.0.tgz#48d84bf079d60140ef1a20cbfa8e16536481f6a0"
+  integrity sha512-W9RtmxQe0ZLvAwtoQtKb96SGNGNIWTskhxkXu5FeH5IPyvU5PpEWFLsyg3rmzLVAUHF1WsQwXBv/EZwwAjFkGQ==
+
+"@suid/utils@0.9.0":
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/@suid/utils/-/utils-0.9.0.tgz#875fb660e530f79078f44e535674c3f680c799e7"
+  integrity sha512-YDudkXz0PXGlzl6s9OFCsRkdCTn6RBSx6Nb8o+np/SfOQ+Tnx3abgjNGkt10xZMRbobBr0lr6asmkYUQQRhHYA==
+  dependencies:
+    "@suid/types" "0.6.0"
 
 "@tauri-apps/api@2.0.0-beta.15":
   version "2.0.0-beta.15"
@@ -614,6 +687,11 @@ chalk@^2.4.2:
     escape-string-regexp "^1.0.5"
     supports-color "^5.3.0"
 
+clsx@^2.1.0:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/clsx/-/clsx-2.1.1.tgz#eed397c9fd8bd882bfb18deab7102049a2f32999"
+  integrity sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==
+
 color-convert@^1.9.0:
   version "1.9.3"
   resolved "https://registry.yarnpkg.com/color-convert/-/color-convert-1.9.3.tgz#bb71850690e1f136567de629d2d5471deda4c1e8"
@@ -631,7 +709,7 @@ convert-source-map@^2.0.0:
   resolved "https://registry.yarnpkg.com/convert-source-map/-/convert-source-map-2.0.0.tgz#4b560f649fc4e918dd0ab75cf4961e8bc882d82a"
   integrity sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==
 
-csstype@^3.1.0:
+csstype@^3.1.0, csstype@^3.1.3:
   version "3.1.3"
   resolved "https://registry.yarnpkg.com/csstype/-/csstype-3.1.3.tgz#d80ff294d114fb0e6ac500fbf85b60137d7eff81"
   integrity sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw==
