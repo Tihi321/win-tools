@@ -5,7 +5,7 @@ mod utils;
 use disk::disk::open_in_export_folder;
 use serde::{Deserialize, Serialize};
 use serde_json::{self};
-use tauri::Manager;
+use tauri::{Emitter, Listener, Manager};
 use tts::tts::{generate_tts_synthesis, get_voices_list_names, save_voices_list};
 use utils::{constants::WINDOW_LABEL, index::create_window};
 
@@ -33,17 +33,28 @@ pub fn run() {
             let refresh_hvoices_handle = app_handle.clone();
             let create_text_hvoices_handle = app_handle.clone();
             let create_file_hvoices_handle = app_handle.clone();
+            let update_window_title = app_handle.clone();
 
             let _ = create_window(&app).unwrap();
 
-            app.listen_any("get_voices_list", move |_| {
+            app.listen("update_title", move |event| {
+                let title = event.payload();
+
+                let _ = update_window_title
+                    .get_webview_window(WINDOW_LABEL)
+                    .unwrap()
+                    .set_title(title);
+            });
+
+            app.listen("get_voices_list", move |_| {
                 let voices = get_voices_list_names();
                 let window = get_voices_handle.get_webview_window(WINDOW_LABEL).unwrap();
                 window
                     .emit_to(WINDOW_LABEL, "get_voices_list_response", voices)
                     .expect("Failed to emit event");
             });
-            app.listen_any("refresh_voices_list", move |_| {
+
+            app.listen("refresh_voices_list", move |_| {
                 save_voices_list();
                 let voices = get_voices_list_names();
                 let window = refresh_hvoices_handle
@@ -53,7 +64,7 @@ pub fn run() {
                     .emit_to(WINDOW_LABEL, "get_voices_list_response", voices)
                     .expect("Failed to emit event");
             });
-            app.listen_any("create_audio_from_text", move |event| {
+            app.listen("create_audio_from_text", move |event| {
                 let value = event.payload();
                 match serde_json::from_str::<AudioText>(value) {
                     Ok(audio_payload) => {
@@ -74,7 +85,7 @@ pub fn run() {
                     Err(e) => eprintln!("Failed to parse event payload: {}", e),
                 }
             });
-            app.listen_any("create_audio_from_file", move |event| {
+            app.listen("create_audio_from_file", move |event| {
                 let value = event.payload();
                 match serde_json::from_str::<AudioFile>(value) {
                     Ok(audio_payload) => {
@@ -97,7 +108,7 @@ pub fn run() {
                     Err(e) => eprintln!("Failed to parse event payload: {}", e),
                 }
             });
-            app.listen_any("open_export_folder", move |_| {
+            app.listen("open_export_folder", move |_| {
                 open_in_export_folder().unwrap();
             });
             Ok(())

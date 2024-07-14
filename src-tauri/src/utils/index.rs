@@ -15,7 +15,7 @@ pub fn create_window(app: &App) -> Result<WebviewWindow, tauri::Error> {
     data_directory.push("cache");
 
     tauri::WebviewWindowBuilder::new(app, WINDOW_LABEL, WebviewUrl::App("index.html".into()))
-        .title("Text To Speach".to_string())
+        .title("Win Tools".to_string())
         .visible(true)
         .center()
         .data_directory(data_directory)
