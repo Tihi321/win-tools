@@ -85,7 +85,7 @@ pub fn run() {
                     Err(e) => eprintln!("Failed to parse event payload: {}", e),
                 }
             });
-            app.listen("get_script", move |_| {
+            app.listen("get_scripts", move |_| {
                 let scripts = get_script_names().expect("Failed to get scripts");
                 get_scripts
                     .get_webview_window(WINDOW_LABEL)

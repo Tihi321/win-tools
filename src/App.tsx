@@ -1,5 +1,5 @@
 import { styled } from "solid-styled-components";
-import { TextToSpeach } from "./tools/TextToSpeach";
+import { TextToSpeach } from "./tools/TextToSpeecth/TextToSpeach";
 import { createSignal, For, Show } from "solid-js";
 import {
   AppBar,
@@ -14,7 +14,7 @@ import {
 } from "@suid/material";
 import MenuIcon from "@suid/icons-material/Menu";
 import { replace, startCase } from "lodash";
-import { ScriptRunner } from "./tools/ScriptRunner";
+import { ScriptRunner } from "./tools/ScriptRunner/ScriptRunner";
 
 const Container = styled("div")`
   margin: 0;

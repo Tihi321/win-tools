@@ -1,89 +1,22 @@
 import { createEffect, createSignal, createMemo, onMount } from "solid-js";
-import { styled } from "solid-styled-components";
 import { listen, emit } from "@tauri-apps/api/event";
 import { get, map, filter, includes, isEmpty } from "lodash";
-import { Button } from "../components/inputs/Button";
-import { VOICES_LIST } from "../constants";
-import { loadLocalLanguage, loadUsedFile, saveLocalLanguage, saveUseFile } from "../hooks/local";
-import { openFile } from "../hooks/file";
-import { FolderIcon } from "../components/icons/FolderIcon";
+import { Button } from "../../components/inputs/Button";
+import { VOICES_LIST } from "../../constants";
+import { loadLocalLanguage, loadUsedFile, saveLocalLanguage, saveUseFile } from "./local";
+import { FolderIcon } from "../../components/icons/FolderIcon";
 import { TextField, Checkbox, FormControlLabel, Select, MenuItem } from "@suid/material";
-
-const Main = styled("div")`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-`;
-
-const TextareaContainer = styled("div")`
-  width: 100%;
-  height: 100%;
-  flex: 1;
-  display: flex;
-
-  .MuiOutlinedInput-root {
-    padding: 0;
-  }
-
-  textarea {
-    background: ${(props) => props?.theme?.colors.lightBackground};
-    border-radius: 6px;
-    padding: 8px;
-  }
-`;
-
-const TextFieldContainer = styled("div")`
-  input {
-    padding: 8px;
-    width: 300px;
-    border-radius: 6px;
-    background: ${(props) => props?.theme?.colors.lightBackground};
-    height: 20px;
-  }
-`;
-
-const SelectContainer = styled("div")`
-  .MuiOutlinedInput-root {
-    padding: 0;
-    width: 300px;
-    background: ${(props) => props?.theme?.colors.lightBackground};
-  }
-
-  input {
-    padding: 8px;
-  }
-`;
-
-const FileContainer = styled("div")`
-  width: 100%;
-  height: 100%;
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  flex-direction: column;
-`;
-
-const FilePathButton = styled(Button)`
-  width: 200px;
-  height: 200px;
-`;
-
-const Footer = styled("div")`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 4px;
-  background-color: ${(props) => props?.theme?.colors.background};
-  color: ${(props) => props?.theme?.colors.lightText};
-  transition: transform 0.3s ease;
-  gap: 8px;
-`;
-
-const CreateButton = styled(Button)`
-  width: 200px;
-`;
+import { FilePathButton } from "../../components/inputs/FilePathButton";
+import {
+  CreateButton,
+  FileContainer,
+  Footer,
+  Main,
+  SelectContainer,
+  TextareaContainer,
+  TextFieldContainer,
+  WideButton,
+} from "./Styles";
 
 type VoicesList = Array<{ name: string; lang: string }>;
 
@@ -100,22 +33,11 @@ export const TextToSpeach = () => {
   );
 
   onMount(() => {
-    try {
-      emit("update_title", "Text to Speech");
-    } catch (error) {
-      console.error("Error invoking voices_list command:", error);
-    }
+    emit("update_title", "Text to Speech");
+    emit("get_voices_list", {});
   });
 
   const voicesAvailable = createMemo(() => !isEmpty(voices()));
-
-  createEffect(async () => {
-    try {
-      emit("get_voices_list", {});
-    } catch (error) {
-      console.error("Error invoking voices_list command:", error);
-    }
-  });
 
   createEffect(async () => {
     const unlisten = await listen("get_voices_list_response", (event: any) => {
@@ -170,14 +92,6 @@ export const TextToSpeach = () => {
     emit("open_export_folder", {});
   };
 
-  const onOpenFile = () => {
-    try {
-      openFile().then((selected) => setFile(get(selected, ["path"])));
-    } catch (error) {
-      console.error("Error opening file dialog:", error);
-    }
-  };
-
   const fetchVoices = () => {
     emit("refresh_voices_list", {});
   };
@@ -187,16 +101,14 @@ export const TextToSpeach = () => {
       <Main>
         {!voicesAvailable() && (
           <FileContainer>
-            <FilePathButton datatype="secondary" onClick={fetchVoices}>
+            <WideButton datatype="secondary" onClick={fetchVoices}>
               Get Voices
-            </FilePathButton>
+            </WideButton>
           </FileContainer>
         )}
         {voicesAvailable() && useFile() && (
           <FileContainer>
-            <FilePathButton datatype="secondary" onClick={onOpenFile}>
-              <FolderIcon />
-            </FilePathButton>
+            <FilePathButton type="txt" onFileSelected={setFile} />
             {file()}
           </FileContainer>
         )}

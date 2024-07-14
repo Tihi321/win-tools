@@ -11,7 +11,7 @@ pub fn get_scripts_folder_path() -> PathBuf {
 
     if !quizes_folder_path.exists() {
         fs::create_dir_all(&quizes_folder_path).unwrap();
-        println!("Folder 'quizes' created successfully.");
+        println!("Folder 'scripts' created successfully.");
     }
 
     return quizes_folder_path;
@@ -42,9 +42,9 @@ pub fn remove_script(script_name: &str) -> Result<(), std::io::Error> {
     // Check if the file exists and remove it
     if file_path.exists() {
         fs::remove_file(file_path)?;
-        println!("Quiz {} removed successfully.", script_name);
+        println!("Script {} removed successfully.", script_name);
     } else {
-        println!("Quiz {} does not exist.", script_name);
+        println!("Script {} does not exist.", script_name);
     }
 
     Ok(())

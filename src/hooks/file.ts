@@ -1,6 +1,6 @@
 import { open } from "@tauri-apps/plugin-dialog";
 
-export const openFile = async () => {
+export const openFile = async (type: string) => {
   try {
     // Opens a file dialog allowing the user to select files
     const selected = await open({
@@ -8,7 +8,7 @@ export const openFile = async () => {
       filters: [
         {
           name: "Application",
-          extensions: ["txt"],
+          extensions: [type],
         },
       ],
       // Optional: specify if multiple files can be selected
@@ -22,6 +22,23 @@ export const openFile = async () => {
   } catch (error) {
     console.error("Error opening file dialog:", error);
 
+    return "";
+  }
+};
+
+export const openFolder = async () => {
+  try {
+    // Opens a file dialog allowing the user to select directories
+    const selected = await open({
+      // Remove filters for file types since we're selecting directories
+      // Optional: specify if multiple directories can be selected
+      multiple: false,
+      // Set to true to specify that directories can be selected
+      directory: true,
+    });
+    return selected;
+  } catch (error) {
+    console.error("Error opening file dialog:", error);
     return "";
   }
 };
