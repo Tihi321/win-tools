@@ -1,27 +1,23 @@
-mod disk;
+mod scripts;
 mod tts;
 mod utils;
 
-use disk::disk::open_in_export_folder;
-use serde::{Deserialize, Serialize};
+use scripts::{
+    disk::{add_script, get_script_names, get_script_path, remove_script},
+    structs::{Script, ScriptWindow},
+    terminal::{start_script, stop_script},
+};
 use serde_json::{self};
 use tauri::{Emitter, Listener, Manager};
-use tts::tts::{generate_tts_synthesis, get_voices_list_names, save_voices_list};
-use utils::{constants::WINDOW_LABEL, index::create_window};
-
-#[derive(Serialize, Deserialize)]
-pub struct AudioText {
-    pub(crate) text: String,
-    pub(crate) name: String,
-    pub(crate) voice: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct AudioFile {
-    pub(crate) file: String,
-    pub(crate) name: String,
-    pub(crate) voice: String,
-}
+use tts::{
+    disk::open_in_export_folder,
+    tts::{generate_tts_synthesis, get_voices_list_names, save_voices_list},
+};
+use utils::{
+    constants::WINDOW_LABEL,
+    index::create_window,
+    structs::{AudioFile, AudioText},
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -34,17 +30,15 @@ pub fn run() {
             let create_text_hvoices_handle = app_handle.clone();
             let create_file_hvoices_handle = app_handle.clone();
             let update_window_title = app_handle.clone();
+            let get_scripts = app_handle.clone();
+            let add_script_file = app_handle.clone();
+            let remove_script_file = app_handle.clone();
 
             let _ = create_window(&app).unwrap();
 
             app.listen("update_title", move |event| {
-                let mut payload = event.payload().to_string();
-                payload.pop();
-                let title = if !payload.is_empty() {
-                    &payload[1..]
-                } else {
-                    ""
-                };
+                let payload = event.payload().to_string();
+                let title = payload.trim_start_matches('"').trim_end_matches('"');
 
                 let _ = update_window_title
                     .get_webview_window(WINDOW_LABEL)
@@ -91,6 +85,59 @@ pub fn run() {
                     Err(e) => eprintln!("Failed to parse event payload: {}", e),
                 }
             });
+            app.listen("get_script", move |_| {
+                let scripts = get_script_names().expect("Failed to get scripts");
+                get_scripts
+                    .get_webview_window(WINDOW_LABEL)
+                    .unwrap()
+                    .emit_to(WINDOW_LABEL, "scripts", scripts)
+                    .expect("Failed to emit event");
+            });
+            app.listen("add_script", move |event| {
+                let payload = event.payload().to_string();
+                let file_path = payload.trim_start_matches('"').trim_end_matches('"');
+                add_script(file_path.to_string()).unwrap();
+                let scripts = get_script_names().expect("Failed to get scripts");
+                // Use the app_handle to get the window by its label
+                add_script_file
+                    .get_webview_window(WINDOW_LABEL)
+                    .unwrap()
+                    .emit_to(WINDOW_LABEL, "scripts", scripts)
+                    .expect("Failed to emit event");
+            });
+            app.listen("remove_script", move |event| {
+                let payload = event.payload().to_string();
+                let name = payload.trim_start_matches('"').trim_end_matches('"');
+                remove_script(name).unwrap();
+                let scripts = get_script_names().expect("Failed to get scripts");
+                // Use the app_handle to get the window by its label
+                remove_script_file
+                    .get_webview_window(WINDOW_LABEL)
+                    .unwrap()
+                    .emit_to(WINDOW_LABEL, "scripts", scripts)
+                    .expect("Failed to emit event");
+            });
+            app.listen("start_script", move |event| {
+                let value = event.payload();
+                match serde_json::from_str::<ScriptWindow>(value) {
+                    Ok(window_script) => {
+                        start_script(&Script {
+                            name: window_script.name.clone(),
+                            visibility: window_script.visibility,
+                            arguments: window_script.arguments,
+                            path: get_script_path(window_script.name.as_str()).unwrap(),
+                        })
+                        .unwrap();
+                    }
+                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
+                }
+            });
+            app.listen("stop_script", move |event| {
+                let payload = event.payload().to_string();
+                let name = payload.trim_start_matches('"').trim_end_matches('"');
+                stop_script(name).unwrap();
+            });
+
             app.listen("create_audio_from_file", move |event| {
                 let value = event.payload();
                 match serde_json::from_str::<AudioFile>(value) {

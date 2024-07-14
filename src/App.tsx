@@ -14,6 +14,7 @@ import {
 } from "@suid/material";
 import MenuIcon from "@suid/icons-material/Menu";
 import { replace, startCase } from "lodash";
+import { ScriptRunner } from "./tools/ScriptRunner";
 
 const Container = styled("div")`
   margin: 0;
@@ -23,11 +24,11 @@ const Container = styled("div")`
   color: ${(props) => props?.theme?.colors.text};
 `;
 
-const tools: string[] = ["text-to-speach"];
+const tools: string[] = ["script-runner", "text-to-speach"];
 
 export const App = () => {
   const [isDrawerOpen, setIsDrawerOpen] = createSignal<boolean>(false);
-  const [selectedTool, setSelectedTool] = createSignal<string>("text-to-speach");
+  const [selectedTool, setSelectedTool] = createSignal<string>("script-runner");
 
   const toggleDrawer = () => setIsDrawerOpen(!isDrawerOpen());
 
@@ -50,7 +51,7 @@ export const App = () => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Tools
+            Win Tools
           </Typography>
         </Toolbar>
       </AppBar>
@@ -59,7 +60,12 @@ export const App = () => {
         <List sx={{ width: "250px" }}>
           <For each={tools}>
             {(toolName, index) => (
-              <ListItemButton onClick={() => selectTool(toolName)}>
+              <ListItemButton
+                onClick={() => {
+                  selectTool(toolName);
+                  toggleDrawer();
+                }}
+              >
                 {index() + 1}. <ListItemText primary={startCase(replace(toolName, "-", " "))} />
               </ListItemButton>
             )}
@@ -67,6 +73,7 @@ export const App = () => {
         </List>
       </Drawer>
       <Box component="main" sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <Show when={selectedTool()}>{selectedTool() === "script-runner" && <ScriptRunner />}</Show>
         <Show when={selectedTool()}>{selectedTool() === "text-to-speach" && <TextToSpeach />}</Show>
       </Box>
     </Container>
