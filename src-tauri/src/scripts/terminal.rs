@@ -63,8 +63,7 @@ pub fn start_script(script: &Script) -> io::Result<bool> {
 }
 
 pub fn stop_script(name: &str) -> io::Result<bool> {
-    println!("{}", name);
-    let stop_service_command = format!("taskkill /IM {0}.exe /F", name);
+    let stop_service_command = format!("taskkill /IM {0}.bat /F", name);
 
     let _ = execute_hidden_command(&stop_service_command);
 

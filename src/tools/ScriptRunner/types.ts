@@ -1,3 +1,5 @@
-export type ScriptInfo = {
-  [key: string]: string[];
-};
+export type ScriptInfo = Array<{
+  name: string;
+  path: string;
+  args: string[];
+}>;

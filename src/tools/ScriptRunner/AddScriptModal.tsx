@@ -8,13 +8,12 @@ import {
   DialogContent,
   DialogTitle,
   Grid,
+  TextField,
   Typography,
 } from "@suid/material";
 import { map } from "lodash";
-import { saveScriptInfo } from "./local";
 import { SelectType } from "./SelectType";
 import { emit } from "@tauri-apps/api/event";
-import { basename } from "../../utils";
 
 const Container = styled(DialogContent)`
   flex: 1;
@@ -26,7 +25,7 @@ interface AddScriptModalProps {
 }
 
 export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
-  const [fileName, setFileName] = createSignal("");
+  const [name, setName] = createSignal("");
   const [filePath, setFilePath] = createSignal("");
   const [scriptArgs, setScriptArgs] = createSignal<string[]>([]);
   const [selectedType, setSelectedType] = createSignal("text");
@@ -37,10 +36,17 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
       <Container>
         <Grid container spacing={2}>
           <Grid item xs={12}>
-            <FilePathButton
-              type="bat"
-              onFileSelected={setFilePath}
-              onNameSelected={(name) => setFileName(basename(name))}
+            <FilePathButton type="bat" onFileSelected={setFilePath} />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              size="small"
+              margin="dense"
+              onBlur={(event: any) => {
+                setName(event.target.value);
+              }}
             />
           </Grid>
           <Grid item xs={12}>
@@ -75,10 +81,14 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
       <DialogActions>
         <Button
           variant="contained"
-          disabled={!fileName()}
+          disabled={!filePath() && !name()}
           onClick={() => {
-            saveScriptInfo(fileName() || "", scriptArgs());
-            emit("add_script", filePath());
+            emit("save_script", {
+              name: name(),
+              script_args: scriptArgs(),
+              path: filePath(),
+            });
+            setName("");
             setSelectedType("text");
             setScriptArgs([]);
             props.onClose();
