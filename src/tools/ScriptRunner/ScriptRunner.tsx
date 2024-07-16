@@ -42,8 +42,7 @@ const ScrollContainer = styled("div")`
 const ScriptCard = styled(Paper)`
   display: flex;
   flex-direction: column;
-  min-width: 300px;
-  width: 300px;
+  width: 100%;
   margin-right: 16px;
   padding: 16px;
   height: 100%;
@@ -96,73 +95,100 @@ export const ScriptRunner = () => {
         {map(scriptInfos(), (values) => (
           <ScriptCard elevation={3}>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
                 {values.name}
               </Typography>
               <List sx={{ flexGrow: 1, overflowY: "auto", maxHeight: "200px" }}>
                 {map(values.args, (argumentValues, index) => (
-                  <ListItem disablePadding>
-                    {argumentValues.label}
-                    {argumentValues.value === "text" && (
-                      <TextField
-                        fullWidth
-                        variant="outlined"
-                        size="small"
-                        margin="dense"
-                        label={`Argument ${index + 1}`}
-                        onBlur={(event: any) => {
-                          setScriptVariables((state) => {
-                            const scriptArguments = get(state, [values.name], []);
-                            scriptArguments[index] = event.target.value;
-                            return { ...state, [values.name]: scriptArguments };
-                          });
-                        }}
-                      />
-                    )}
-                    {argumentValues.value === "number" && (
-                      <TextField
-                        fullWidth
-                        type="number"
-                        variant="outlined"
-                        size="small"
-                        margin="dense"
-                        label={`Argument ${index + 1}`}
-                        onBlur={(event: any) => {
-                          setScriptVariables((state) => {
-                            const scriptArguments = get(state, [values.name], []);
-                            scriptArguments[index] = event.target.value;
-                            return { ...state, [values.name]: scriptArguments };
-                          });
-                        }}
-                      />
-                    )}
-                    {argumentValues.value === "folder" && (
-                      <Box sx={{ my: 1 }}>
-                        <FolderPathButton
-                          onFolderSelected={(path) => {
+                  <ListItem
+                    disablePadding
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        width: "100%",
+                      }}
+                    >
+                      <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: "bold" }}>
+                        {argumentValues.label}
+                      </Typography>
+                      {argumentValues.value === "text" && (
+                        <TextField
+                          fullWidth
+                          variant="outlined"
+                          size="small"
+                          margin="dense"
+                          label={`Argument ${index + 1}`}
+                          onBlur={(event: any) => {
                             setScriptVariables((state) => {
                               const scriptArguments = get(state, [values.name], []);
-                              scriptArguments[index] = path;
+                              scriptArguments[index] = event.target.value;
                               return { ...state, [values.name]: scriptArguments };
                             });
                           }}
                         />
-                      </Box>
-                    )}
-                    {argumentValues.value === "file" && (
-                      <Box sx={{ my: 1 }}>
-                        <FilePathButton
-                          types={["*"]}
-                          onFileSelected={(path) => {
+                      )}
+                      {argumentValues.value === "number" && (
+                        <TextField
+                          fullWidth
+                          type="number"
+                          variant="outlined"
+                          size="small"
+                          margin="dense"
+                          label={`Argument ${index + 1}`}
+                          onBlur={(event: any) => {
                             setScriptVariables((state) => {
                               const scriptArguments = get(state, [values.name], []);
-                              scriptArguments[index] = path;
+                              scriptArguments[index] = event.target.value;
                               return { ...state, [values.name]: scriptArguments };
                             });
                           }}
                         />
-                      </Box>
-                    )}
+                      )}
+                      {argumentValues.value === "folder" && (
+                        <Box sx={{ my: 1 }}>
+                          <FolderPathButton
+                            onFolderSelected={(path) => {
+                              setScriptVariables((state) => {
+                                const scriptArguments = get(state, [values.name], []);
+                                scriptArguments[index] = path;
+                                return { ...state, [values.name]: scriptArguments };
+                              });
+                            }}
+                          />
+                        </Box>
+                      )}
+                      {argumentValues.value === "file" && (
+                        <Box sx={{ my: 1 }}>
+                          <FilePathButton
+                            types={["*"]}
+                            onFileSelected={(path) => {
+                              setScriptVariables((state) => {
+                                const scriptArguments = get(state, [values.name], []);
+                                scriptArguments[index] = path;
+                                return { ...state, [values.name]: scriptArguments };
+                              });
+                            }}
+                          />
+                        </Box>
+                      )}
+                    </Box>
+                    <Typography
+                      variant="subtitle2"
+                      gutterBottom
+                      sx={{ fontWeight: "bold", textAlign: "left" }}
+                    >
+                      {get(scriptVariables(), [values.name, index], "")}
+                    </Typography>
                   </ListItem>
                 ))}
               </List>
