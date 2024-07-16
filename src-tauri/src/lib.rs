@@ -75,9 +75,19 @@ pub fn run() {
                         let text = audio_payload.text;
                         let name = audio_payload.name;
                         let voice = audio_payload.voice;
+                        let pitch = audio_payload.pitch;
+                        let rate = audio_payload.rate;
+                        let volume = audio_payload.volume;
 
-                        generate_tts_synthesis(text.as_str(), name.as_str(), voice.as_str())
-                            .unwrap();
+                        generate_tts_synthesis(
+                            text.as_str(),
+                            name.as_str(),
+                            voice.as_str(),
+                            pitch,
+                            rate,
+                            volume,
+                        )
+                        .unwrap();
 
                         let window = create_text_hvoices_handle
                             .get_webview_window(WINDOW_LABEL)
@@ -176,10 +186,20 @@ pub fn run() {
                         let file = audio_payload.file;
                         let name = audio_payload.name;
                         let voice = audio_payload.voice;
+                        let pitch = audio_payload.pitch;
+                        let rate = audio_payload.rate;
+                        let volume = audio_payload.volume;
 
                         let text = std::fs::read_to_string(file).unwrap();
-                        generate_tts_synthesis(text.as_str(), name.as_str(), voice.as_str())
-                            .unwrap();
+                        generate_tts_synthesis(
+                            text.as_str(),
+                            name.as_str(),
+                            voice.as_str(),
+                            pitch,
+                            rate,
+                            volume,
+                        )
+                        .unwrap();
 
                         let window = create_file_hvoices_handle
                             .get_webview_window(WINDOW_LABEL)

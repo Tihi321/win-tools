@@ -71,10 +71,21 @@ pub fn get_voices_list_names() -> Vec<(String, String)> {
 fn get_audio_stream(
     text: &str,
     name: &str,
+    pitch: f32,
+    rate: f32,
+    volume: f32,
 ) -> Result<SynthesizedAudio, Box<dyn std::error::Error>> {
+    // Scale pitch and rate to the range expected by the API
+    let pitch_scaled = (pitch * 50.0) as i32 - 50; // Map 0.0-2.0 to -50 to 50
+    let rate_scaled = (rate * 100.0) as i32 - 100; // Map 0.0-2.0 to -100 to 100
+    let volume_scaled = (volume * 100.0) as i32; // Map 0.0-1.0 to 0 to 100
+
     let voice = get_voice(name)?;
     let mut tts = connect()?;
-    let config = SpeechConfig::from(&voice);
+    let mut config = SpeechConfig::from(&voice);
+    config.pitch = pitch_scaled;
+    config.rate = rate_scaled;
+    config.volume = volume_scaled;
     let audio_stream = tts.synthesize(text, &config)?;
     Ok(audio_stream)
 }
@@ -83,8 +94,11 @@ pub fn generate_tts_synthesis(
     text: &str,
     name: &str,
     voice: &str,
+    pitch: f32,
+    rate: f32,
+    volume: f32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let audio_stream = get_audio_stream(text, voice)?;
+    let audio_stream = get_audio_stream(text, voice, pitch, rate, volume)?;
 
     // Save the audio bytes to a file
     let mut path = PathBuf::from(EXPORT_FOLDER_NAME);
