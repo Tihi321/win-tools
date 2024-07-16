@@ -2,6 +2,7 @@ import { Component, createSignal } from "solid-js";
 import { styled } from "solid-styled-components";
 import { FilePathButton } from "../../components/inputs/FilePathButton";
 import {
+  Box,
   Button,
   Checkbox,
   Dialog,
@@ -36,7 +37,14 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
 
   return (
     <Dialog open={true} onClose={props.onClose}>
-      <DialogTitle>Add New Script</DialogTitle>
+      <DialogTitle>
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
+          Add New Script
+        </Typography>
+        <Typography variant="caption" gutterBottom sx={{ fontWeight: "bold" }}>
+          {filePath()}
+        </Typography>
+      </DialogTitle>
       <Container>
         <Grid container spacing={2}>
           <Grid item xs={12}>
@@ -86,9 +94,19 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
             </Button>
           </Grid>
           {map(scriptArgs(), (arg, index) => (
-            <Grid item xs={12}>
-              <Typography>{arg.label}</Typography>
-              <Typography>{arg.value}</Typography>
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                width: "100%",
+                padding: "16px",
+                gap: "8px",
+                border: "1px solid #1976d2",
+                margin: "8px 16px",
+              }}
+            >
+              <Typography variant="subtitle1">Label: {arg.label}</Typography>
+              <Typography variant="subtitle2">Type: {arg.value}</Typography>
               <Button
                 variant="outlined"
                 onClick={() => {
@@ -97,7 +115,7 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
               >
                 Remove argument
               </Button>
-            </Grid>
+            </Box>
           ))}
         </Grid>
       </Container>

@@ -253,7 +253,7 @@ export const ScriptRunner = () => {
           </ScriptCard>
         ))}
       </ScrollContainer>
-      <Box sx={{ mt: 3 }}>
+      <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
         <IconButton color="primary" size="large" onClick={() => setAddScriptModalOpen(true)}>
           <AddIcon />
         </IconButton>

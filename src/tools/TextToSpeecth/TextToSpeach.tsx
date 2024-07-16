@@ -144,7 +144,9 @@ export const TextToSpeach = () => {
           {voicesAvailable() && useFile() && (
             <FileContainer>
               <FilePathButton types={["txt"]} onFileSelected={setFile} />
-              {file()}
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: "bold" }}>
+                {file()}
+              </Typography>
             </FileContainer>
           )}
           {voicesAvailable() && !useFile() && (
