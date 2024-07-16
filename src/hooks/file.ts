@@ -1,6 +1,6 @@
 import { open } from "@tauri-apps/plugin-dialog";
 
-export const openFile = async (type: string) => {
+export const openFile = async (types: string[]) => {
   try {
     // Opens a file dialog allowing the user to select files
     const selected = await open({
@@ -8,7 +8,7 @@ export const openFile = async (type: string) => {
       filters: [
         {
           name: "Application",
-          extensions: [type],
+          extensions: types,
         },
       ],
       // Optional: specify if multiple files can be selected

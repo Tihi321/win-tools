@@ -5,8 +5,8 @@ mod utils;
 use std::path::Path;
 
 use scripts::{
-    disk::{get_scripts_db, remove_script, save_script},
-    structs::{Script, ScriptSave},
+    disk::{add_script_to_disk, get_scripts_db, remove_script, save_script},
+    structs::{Script, ScriptSaveWindow},
     terminal::{start_script, stop_script},
 };
 use serde_json::{self};
@@ -35,6 +35,7 @@ pub fn run() {
             let get_scripts = app_handle.clone();
             let save_script_file = app_handle.clone();
             let remove_script_file = app_handle.clone();
+            let add_script_file = app_handle.clone();
 
             let _ = create_window(&app).unwrap();
 
@@ -100,12 +101,13 @@ pub fn run() {
 
             app.listen("save_script", move |event| {
                 let value = event.payload();
-                match serde_json::from_str::<ScriptSave>(value) {
+                match serde_json::from_str::<ScriptSaveWindow>(value) {
                     Ok(window_script) => {
                         save_script(
                             window_script.path,
                             window_script.name,
                             window_script.script_args,
+                            window_script.save,
                         )
                         .unwrap();
                         let scripts = get_scripts_db().expect("Failed to get scripts");
@@ -139,6 +141,19 @@ pub fn run() {
                 let path = payload.trim_start_matches('"').trim_end_matches('"');
                 let name = Path::new(path).file_name().unwrap().to_str().unwrap();
                 stop_script(name).unwrap();
+            });
+
+            app.listen("add_script", move |event| {
+                let payload = event.payload().to_string();
+                let path = payload.trim_start_matches('"').trim_end_matches('"');
+                add_script_to_disk(path.to_string());
+                let scripts = get_scripts_db().expect("Failed to get scripts");
+                // Use the app_handle to get the window by its label
+                add_script_file
+                    .get_webview_window(WINDOW_LABEL)
+                    .unwrap()
+                    .emit_to(WINDOW_LABEL, "scripts", scripts)
+                    .expect("Failed to emit event");
             });
 
             app.listen("remove_script", move |event| {

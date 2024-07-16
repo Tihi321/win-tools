@@ -108,7 +108,7 @@ export const TextToSpeach = () => {
         )}
         {voicesAvailable() && useFile() && (
           <FileContainer>
-            <FilePathButton type="txt" onFileSelected={setFile} />
+            <FilePathButton types={["txt"]} onFileSelected={setFile} />
             {file()}
           </FileContainer>
         )}

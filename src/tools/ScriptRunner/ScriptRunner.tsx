@@ -16,12 +16,14 @@ import {
 import PlayArrowIcon from "@suid/icons-material/PlayArrow";
 import StopIcon from "@suid/icons-material/Stop";
 import DeleteIcon from "@suid/icons-material/Delete";
+import FileCopy from "@suid/icons-material/FileCopy";
 import AddIcon from "@suid/icons-material/Add";
 import { AddScriptModal } from "./AddScriptModal";
 import { ScriptInfo } from "./types";
 import { FolderPathButton } from "../../components/inputs/FolderPathButton";
 import { VISIBILITY } from "./constants";
 import { styled } from "solid-styled-components";
+import { FilePathButton } from "../../components/inputs/FilePathButton";
 
 const ScrollContainer = styled("div")`
   display: flex;
@@ -72,6 +74,7 @@ export const ScriptRunner = () => {
         name: get(values, ["name"], ""),
         path: get(values, ["path"], ""),
         args: get(values, ["script_args"], []),
+        local: get(values, ["local"], false),
       }));
 
       setScriptInfos(scriptVariables);
@@ -97,9 +100,10 @@ export const ScriptRunner = () => {
                 {values.name}
               </Typography>
               <List sx={{ flexGrow: 1, overflowY: "auto", maxHeight: "200px" }}>
-                {map(values.args, (type, index) => (
+                {map(values.args, (argumentValues, index) => (
                   <ListItem disablePadding>
-                    {type === "text" && (
+                    {argumentValues.label}
+                    {argumentValues.value === "text" && (
                       <TextField
                         fullWidth
                         variant="outlined"
@@ -115,7 +119,7 @@ export const ScriptRunner = () => {
                         }}
                       />
                     )}
-                    {type === "number" && (
+                    {argumentValues.value === "number" && (
                       <TextField
                         fullWidth
                         type="number"
@@ -132,10 +136,24 @@ export const ScriptRunner = () => {
                         }}
                       />
                     )}
-                    {type === "folder" && (
+                    {argumentValues.value === "folder" && (
                       <Box sx={{ my: 1 }}>
                         <FolderPathButton
                           onFolderSelected={(path) => {
+                            setScriptVariables((state) => {
+                              const scriptArguments = get(state, [values.name], []);
+                              scriptArguments[index] = path;
+                              return { ...state, [values.name]: scriptArguments };
+                            });
+                          }}
+                        />
+                      </Box>
+                    )}
+                    {argumentValues.value === "file" && (
+                      <Box sx={{ my: 1 }}>
+                        <FilePathButton
+                          types={["*"]}
+                          onFileSelected={(path) => {
                             setScriptVariables((state) => {
                               const scriptArguments = get(state, [values.name], []);
                               scriptArguments[index] = path;
@@ -185,6 +203,17 @@ export const ScriptRunner = () => {
                 >
                   <StopIcon />
                 </IconButton>
+
+                {!values.local && (
+                  <IconButton
+                    color="error"
+                    onClick={() => {
+                      emit("add_script", values.path);
+                    }}
+                  >
+                    <FileCopy />
+                  </IconButton>
+                )}
                 <IconButton
                   color="error"
                   onClick={() => {

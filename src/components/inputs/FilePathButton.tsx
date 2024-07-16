@@ -7,13 +7,13 @@ import { FolderIcon } from "../icons/FolderIcon";
 interface FilePathButtonProps {
   onFileSelected: (path: string) => void;
   onNameSelected?: (name: string) => void;
-  type: string;
+  types: string[];
 }
 
 export const FilePathButton: Component<FilePathButtonProps> = (props) => {
   const onOpenFile = () => {
     try {
-      openFile(props.type).then((selected: any) => {
+      openFile(props.types).then((selected: any) => {
         props.onFileSelected(get(selected, ["path"]));
         if (props.onNameSelected) {
           props.onNameSelected(get(selected, ["name"]));

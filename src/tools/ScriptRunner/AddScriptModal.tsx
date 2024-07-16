@@ -3,10 +3,12 @@ import { styled } from "solid-styled-components";
 import { FilePathButton } from "../../components/inputs/FilePathButton";
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   Grid,
   TextField,
   Typography,
@@ -27,8 +29,10 @@ interface AddScriptModalProps {
 export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
   const [name, setName] = createSignal("");
   const [filePath, setFilePath] = createSignal("");
-  const [scriptArgs, setScriptArgs] = createSignal<string[]>([]);
+  const [scriptArgs, setScriptArgs] = createSignal<Array<{ label: string; value: string }>>([]);
   const [selectedType, setSelectedType] = createSignal("text");
+  const [selectedTypeLabel, setSelectedTypeLabel] = createSignal("");
+  const [saveToDisk, setSaveToDisk] = createSignal(true);
 
   return (
     <Dialog open={true} onClose={props.onClose}>
@@ -36,7 +40,7 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
       <Container>
         <Grid container spacing={2}>
           <Grid item xs={12}>
-            <FilePathButton type="bat" onFileSelected={setFilePath} />
+            <FilePathButton types={["bat", "exe"]} onFileSelected={setFilePath} />
           </Grid>
           <Grid item xs={12}>
             <TextField
@@ -51,13 +55,31 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
           </Grid>
           <Grid item xs={12}>
             <SelectType type={selectedType()} onChange={setSelectedType} />
+            <TextField
+              fullWidth
+              variant="outlined"
+              size="small"
+              margin="dense"
+              value={selectedTypeLabel()}
+              onChange={(event: any) => {
+                setSelectedTypeLabel(event.target.value);
+              }}
+            />
           </Grid>
           <Grid item xs={12}>
             <Button
+              disabled={!selectedTypeLabel()}
               variant="contained"
               onClick={() => {
-                setScriptArgs([...scriptArgs(), selectedType()]);
+                setScriptArgs([
+                  ...scriptArgs(),
+                  {
+                    label: selectedTypeLabel(),
+                    value: selectedType(),
+                  },
+                ]);
                 setSelectedType("text");
+                setSelectedTypeLabel("");
               }}
             >
               Add argument
@@ -65,7 +87,8 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
           </Grid>
           {map(scriptArgs(), (arg, index) => (
             <Grid item xs={12}>
-              <Typography>{arg}</Typography>
+              <Typography>{arg.label}</Typography>
+              <Typography>{arg.value}</Typography>
               <Button
                 variant="outlined"
                 onClick={() => {
@@ -79,6 +102,17 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
         </Grid>
       </Container>
       <DialogActions>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={saveToDisk()}
+              onChange={(event) => {
+                setSaveToDisk(!event.target.checked);
+              }}
+            />
+          }
+          label="Add to disk"
+        />
         <Button
           variant="contained"
           disabled={!filePath() && !name()}
@@ -87,6 +121,7 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
               name: name(),
               script_args: scriptArgs(),
               path: filePath(),
+              save: saveToDisk(),
             });
             setName("");
             setSelectedType("text");
