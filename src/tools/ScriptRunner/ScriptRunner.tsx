@@ -1,5 +1,5 @@
 import { emit, listen } from "@tauri-apps/api/event";
-import { get, join, map } from "lodash";
+import { get, isEmpty, join, map } from "lodash";
 import { createEffect, createSignal } from "solid-js";
 import {
   Box,
@@ -174,19 +174,28 @@ export const ScriptRunner = () => {
                                   }}
                                 />
                               }
-                              label={argumentValues.label}
+                              label={`Argument ${index + 1}`}
                             />
                           </Box>
                         )}
                       </Box>
                     </Box>
-                    <Typography
-                      variant="subtitle2"
-                      gutterBottom
-                      sx={{ fontWeight: "bold", textAlign: "left" }}
-                    >
-                      {get(scriptVariables(), [values.name, index], "")}
-                    </Typography>
+                    {!isEmpty(get(scriptVariables(), [values.name, index], "")) && (
+                      <Box sx={{ display: "flex", gap: "8px" }}>
+                        <Typography
+                          variant="overline"
+                          gutterBottom
+                          sx={{ fontWeight: "bold", textAlign: "left", color: "green" }}
+                        >
+                          Added
+                        </Typography>
+                        {(argumentValues.value === "folder" || argumentValues.value === "file") && (
+                          <Typography variant="overline" gutterBottom>
+                            - {get(scriptVariables(), [values.name, index], "")}
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
                   </ListItem>
                 ))}
               </List>
