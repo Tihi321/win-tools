@@ -31,6 +31,7 @@ export const SelectType: Component<SelectedTypeProps> = (props) => {
       >
         <MenuItem value="text">Text</MenuItem>
         <MenuItem value="number">Number</MenuItem>
+        <MenuItem value="label">Label</MenuItem>
         <MenuItem value="folder">Folder</MenuItem>
         <MenuItem value="file">File</MenuItem>
       </Select>

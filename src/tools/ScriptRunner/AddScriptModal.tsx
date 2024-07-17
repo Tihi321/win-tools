@@ -23,6 +23,12 @@ const Container = styled(DialogContent)`
   flex-direction: column;
 `;
 
+const DialogStyled = styled(Dialog)`
+  .MuiPaper-root {
+    min-height: 600px;
+  }
+`;
+
 interface AddScriptModalProps {
   onClose: () => void;
 }
@@ -36,7 +42,7 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
   const [saveToDisk, setSaveToDisk] = createSignal(true);
 
   return (
-    <Dialog open={true} onClose={props.onClose}>
+    <DialogStyled open={true} onClose={props.onClose}>
       <DialogTitle>
         <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
           Add New Script
@@ -150,6 +156,6 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
           Add script
         </Button>
       </DialogActions>
-    </Dialog>
+    </DialogStyled>
   );
 };

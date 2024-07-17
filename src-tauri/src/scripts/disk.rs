@@ -1,8 +1,6 @@
 use std::env;
 use std::fs;
-use std::fs::File;
 use std::io;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::scripts::structs::ScriptSave;
@@ -53,6 +51,20 @@ pub fn get_new_script_path(script_path: String) -> PathBuf {
     scripts_files_folder.join(Path::new(&script_path).file_name().unwrap())
 }
 
+fn save_scripts_to_db(scripts: Vec<ScriptSave>) {
+    let db_file_path = get_scripts_db_path();
+    let data = serde_json::to_string_pretty(&scripts).unwrap();
+    fs::write(&db_file_path, data.as_bytes()).unwrap();
+}
+
+fn get_scripts_db() -> Vec<ScriptSave> {
+    let db_file_path = get_scripts_db_path();
+    let db_file = fs::File::open(db_file_path.clone()).unwrap();
+    let scripts: Vec<ScriptSave> = serde_json::from_reader(db_file).unwrap();
+
+    scripts
+}
+
 pub fn add_script_to_disk(script_path: String) {
     let new_path = get_new_script_path(script_path.clone());
 
@@ -62,7 +74,53 @@ pub fn add_script_to_disk(script_path: String) {
     }
 
     fs::copy(&script_path, &new_path).unwrap();
+
+    let scrip_name = file_stem(script_path.to_string()).unwrap();
+    let mut scripts = get_scripts_db();
+
+    for script in scripts.iter_mut() {
+        if file_stem(script.path.to_string()).unwrap() == scrip_name {
+            script.path = new_path.to_str().unwrap().to_string();
+        }
+    }
+
+    save_scripts_to_db(scripts);
+
     println!("Script saved successfully.");
+}
+
+pub fn remove_script(
+    name: String,
+    script_path: String,
+    remove_from_disk: bool,
+) -> Result<(), std::io::Error> {
+    let current_folder = get_scripts_folder_path();
+    let is_local = is_path_local(&script_path, &current_folder);
+
+    if is_local && remove_from_disk {
+        let file_path = Path::new(&script_path);
+        // Check if the script file exists and remove it
+        if file_path.exists() {
+            fs::remove_file(&file_path).unwrap();
+            println!("Script {} removed successfully.", script_path);
+        } else {
+            println!("Script {} does not exist.", script_path);
+        }
+    }
+
+    let mut scripts = get_scripts_db();
+
+    if remove_from_disk {
+        // Remove the script with the same path
+        scripts.retain(|script| script.path.to_string() != script_path.to_string());
+    } else {
+        // Remove the script with the matching name
+        scripts.retain(|script| script.name != name);
+    }
+
+    save_scripts_to_db(scripts);
+
+    Ok(())
 }
 
 pub fn save_script(
@@ -78,12 +136,7 @@ pub fn save_script(
         Path::new(&script_path).to_path_buf()
     };
 
-    let db_file_path = get_scripts_db_path();
-
-    // json api looks like this:
-    // Clone `db_file_path` before it's moved so we can use it again
-    let db_file = fs::File::open(db_file_path.clone()).unwrap();
-    let mut scripts: Vec<ScriptSave> = serde_json::from_reader(db_file).unwrap();
+    let mut scripts = get_scripts_db();
 
     // Check if the script already exists
     if scripts.iter().any(|script| script.name == name) {
@@ -100,53 +153,13 @@ pub fn save_script(
         path: file_path.to_str().unwrap().to_string(),
     });
 
-    // Write the updated list to the file in a pretty format
-    let data = serde_json::to_string_pretty(&scripts).unwrap();
-    fs::write(&db_file_path, data.as_bytes()).unwrap();
+    save_scripts_to_db(scripts);
 
     Ok(())
 }
 
-pub fn remove_script(script_path: &str) -> Result<(), std::io::Error> {
-    let current_folder = get_scripts_folder_path();
-    let is_local = is_path_local(&script_path.to_string(), &current_folder);
-
-    if is_local {
-        let file_path = Path::new(&script_path);
-        // Check if the script file exists and remove it
-        if file_path.exists() {
-            fs::remove_file(&file_path).unwrap();
-            println!("Script {} removed successfully.", script_path);
-        } else {
-            println!("Script {} does not exist.", script_path);
-        }
-    }
-
-    let db_file_path = get_scripts_db_path();
-
-    // Load scripts from the database
-    let mut file = File::open(&db_file_path).unwrap();
-    let mut data = String::new();
-    file.read_to_string(&mut data).unwrap();
-    let mut scripts: Vec<ScriptSave> = serde_json::from_str(&data).unwrap();
-
-    let scrip_name = file_stem(script_path.to_string()).unwrap();
-
-    // Remove the script with the matching name
-    scripts.retain(|script| file_stem(script.path.to_string()).unwrap() != scrip_name);
-
-    // Write the updated scripts back to the database
-    let data = serde_json::to_string_pretty(&scripts).unwrap();
-
-    fs::write(db_file_path, data).unwrap();
-
-    Ok(())
-}
-
-pub fn get_scripts_db() -> Result<String, io::Error> {
-    let db_file_path = get_scripts_db_path();
-    let file = File::open(db_file_path).unwrap();
-    let scripts: Vec<ScriptSave> = serde_json::from_reader(file).unwrap();
+pub fn get_scripts_string() -> Result<String, io::Error> {
+    let scripts = get_scripts_db();
 
     let current_folder = get_scripts_folder_path();
 

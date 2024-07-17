@@ -5,7 +5,7 @@ mod utils;
 use std::path::Path;
 
 use scripts::{
-    disk::{add_script_to_disk, get_scripts_db, remove_script, save_script},
+    disk::{add_script_to_disk, get_scripts_string, remove_script, save_script},
     structs::{Script, ScriptSaveWindow},
     terminal::{start_script, stop_script},
 };
@@ -18,7 +18,7 @@ use tts::{
 use utils::{
     constants::WINDOW_LABEL,
     index::create_window,
-    structs::{AudioFile, AudioText},
+    structs::{AddFile, AudioFile, AudioText, RemoveFile},
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -101,7 +101,7 @@ pub fn run() {
             });
 
             app.listen("get_scripts", move |_| {
-                let scripts = get_scripts_db().expect("Failed to get scripts");
+                let scripts = get_scripts_string().expect("Failed to get scripts");
                 get_scripts
                     .get_webview_window(WINDOW_LABEL)
                     .unwrap()
@@ -120,7 +120,7 @@ pub fn run() {
                             window_script.save,
                         )
                         .unwrap();
-                        let scripts = get_scripts_db().expect("Failed to get scripts");
+                        let scripts = get_scripts_string().expect("Failed to get scripts");
                         save_script_file
                             .get_webview_window(WINDOW_LABEL)
                             .unwrap()
@@ -154,29 +154,43 @@ pub fn run() {
             });
 
             app.listen("add_script", move |event| {
-                let payload = event.payload().to_string();
-                let path = payload.trim_start_matches('"').trim_end_matches('"');
-                add_script_to_disk(path.to_string());
-                let scripts = get_scripts_db().expect("Failed to get scripts");
-                // Use the app_handle to get the window by its label
-                add_script_file
-                    .get_webview_window(WINDOW_LABEL)
-                    .unwrap()
-                    .emit_to(WINDOW_LABEL, "scripts", scripts)
-                    .expect("Failed to emit event");
+                let payload = event.payload();
+                match serde_json::from_str::<AddFile>(payload) {
+                    Ok(value) => {
+                        let path = value.path;
+                        add_script_to_disk(path);
+
+                        let scripts = get_scripts_string().expect("Failed to get scripts");
+                        // Use the app_handle to get the window by its label
+                        add_script_file
+                            .get_webview_window(WINDOW_LABEL)
+                            .unwrap()
+                            .emit_to(WINDOW_LABEL, "scripts", scripts)
+                            .expect("Failed to emit event");
+                    }
+                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
+                }
             });
 
             app.listen("remove_script", move |event| {
-                let payload = event.payload().to_string();
-                let path = payload.trim_start_matches('"').trim_end_matches('"');
-                remove_script(path).unwrap();
-                let scripts = get_scripts_db().expect("Failed to get scripts");
-                // Use the app_handle to get the window by its label
-                remove_script_file
-                    .get_webview_window(WINDOW_LABEL)
-                    .unwrap()
-                    .emit_to(WINDOW_LABEL, "scripts", scripts)
-                    .expect("Failed to emit event");
+                let payload = event.payload();
+                match serde_json::from_str::<RemoveFile>(payload) {
+                    Ok(value) => {
+                        let name = value.name;
+                        let path = value.path;
+                        let remove_from_disk = value.remove_from_disk;
+                        remove_script(name, path, remove_from_disk).unwrap();
+
+                        let scripts = get_scripts_string().expect("Failed to get scripts");
+                        // Use the app_handle to get the window by its label
+                        remove_script_file
+                            .get_webview_window(WINDOW_LABEL)
+                            .unwrap()
+                            .emit_to(WINDOW_LABEL, "scripts", scripts)
+                            .expect("Failed to emit event");
+                    }
+                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
+                }
             });
 
             app.listen("create_audio_from_file", move |event| {
@@ -212,6 +226,7 @@ pub fn run() {
                     Err(e) => eprintln!("Failed to parse event payload: {}", e),
                 }
             });
+
             app.listen("open_export_folder", move |_| {
                 open_in_export_folder().unwrap();
             });

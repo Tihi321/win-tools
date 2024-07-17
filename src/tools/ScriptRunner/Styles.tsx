@@ -1,3 +1,4 @@
+import { Paper } from "@suid/material";
 import { styled } from "solid-styled-components";
 
 export const TextFieldContainer = styled("div")`
@@ -37,4 +38,41 @@ export const FileContainer = styled("div")`
     height: 60px;
     padding: 8px;
   }
+`;
+
+export const ScrollContainer = styled("div")`
+  display: flex;
+  flex-wrap: wrap;
+  overflow-x: auto;
+  padding: 16px 0;
+  gap: 16px;
+  &::-webkit-scrollbar {
+    height: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+  }
+`;
+
+export const ScriptCard = styled(Paper)`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-right: 16px;
+  padding: 16px;
+  height: 100%;
+`;
+
+export const CardContent = styled("div")`
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+`;
+
+export const CardActions = styled("div")`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
 `;

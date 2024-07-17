@@ -10,7 +10,6 @@ import {
   Typography,
   List,
   ListItem,
-  Paper,
   IconButton,
 } from "@suid/material";
 import PlayArrowIcon from "@suid/icons-material/PlayArrow";
@@ -22,45 +21,11 @@ import { AddScriptModal } from "./AddScriptModal";
 import { ScriptInfo } from "./types";
 import { FolderPathButton } from "../../components/inputs/FolderPathButton";
 import { VISIBILITY } from "./constants";
-import { styled } from "solid-styled-components";
 import { FilePathButton } from "../../components/inputs/FilePathButton";
+import { CardActions, CardContent, ScriptCard, ScrollContainer } from "./Styles";
 
-const ScrollContainer = styled("div")`
-  display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  padding: 16px 0;
-  &::-webkit-scrollbar {
-    height: 8px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.2);
-    border-radius: 4px;
-  }
-`;
-
-const ScriptCard = styled(Paper)`
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  margin-right: 16px;
-  padding: 16px;
-  height: 100%;
-`;
-
-const CardContent = styled("div")`
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-`;
-
-const CardActions = styled("div")`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: auto;
-`;
 export const ScriptRunner = () => {
+  const [scriptsDiskRemove, setScriptsDiskRemove] = createSignal({});
   const [scriptsHidden, setScriptsHidden] = createSignal({});
   const [scriptInfos, setScriptInfos] = createSignal<ScriptInfo>([]);
   const [addScriptModalOpen, setAddScriptModalOpen] = createSignal(false);
@@ -116,71 +81,104 @@ export const ScriptRunner = () => {
                         justifyContent: "space-between",
                         alignItems: "center",
                         width: "100%",
+                        gap: "24px",
                       }}
                     >
                       <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: "bold" }}>
                         {argumentValues.label}
                       </Typography>
-                      {argumentValues.value === "text" && (
-                        <TextField
-                          fullWidth
-                          variant="outlined"
-                          size="small"
-                          margin="dense"
-                          label={`Argument ${index + 1}`}
-                          onBlur={(event: any) => {
-                            setScriptVariables((state) => {
-                              const scriptArguments = get(state, [values.name], []);
-                              scriptArguments[index] = event.target.value;
-                              return { ...state, [values.name]: scriptArguments };
-                            });
-                          }}
-                        />
-                      )}
-                      {argumentValues.value === "number" && (
-                        <TextField
-                          fullWidth
-                          type="number"
-                          variant="outlined"
-                          size="small"
-                          margin="dense"
-                          label={`Argument ${index + 1}`}
-                          onBlur={(event: any) => {
-                            setScriptVariables((state) => {
-                              const scriptArguments = get(state, [values.name], []);
-                              scriptArguments[index] = event.target.value;
-                              return { ...state, [values.name]: scriptArguments };
-                            });
-                          }}
-                        />
-                      )}
-                      {argumentValues.value === "folder" && (
-                        <Box sx={{ my: 1 }}>
-                          <FolderPathButton
-                            onFolderSelected={(path) => {
+                      <Box
+                        sx={{
+                          flex: 1,
+                          maxWidth: "500px",
+                          display: "flex",
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        {argumentValues.value === "text" && (
+                          <TextField
+                            fullWidth
+                            variant="outlined"
+                            size="small"
+                            margin="dense"
+                            label={`Argument ${index + 1}`}
+                            onBlur={(event: any) => {
                               setScriptVariables((state) => {
                                 const scriptArguments = get(state, [values.name], []);
-                                scriptArguments[index] = path;
+                                scriptArguments[index] = event.target.value;
                                 return { ...state, [values.name]: scriptArguments };
                               });
                             }}
                           />
-                        </Box>
-                      )}
-                      {argumentValues.value === "file" && (
-                        <Box sx={{ my: 1 }}>
-                          <FilePathButton
-                            types={["*"]}
-                            onFileSelected={(path) => {
+                        )}
+                        {argumentValues.value === "number" && (
+                          <TextField
+                            fullWidth
+                            type="number"
+                            variant="outlined"
+                            size="small"
+                            margin="dense"
+                            label={`Argument ${index + 1}`}
+                            onBlur={(event: any) => {
                               setScriptVariables((state) => {
                                 const scriptArguments = get(state, [values.name], []);
-                                scriptArguments[index] = path;
+                                scriptArguments[index] = event.target.value;
                                 return { ...state, [values.name]: scriptArguments };
                               });
                             }}
                           />
-                        </Box>
-                      )}
+                        )}
+                        {argumentValues.value === "folder" && (
+                          <Box sx={{ my: 1 }}>
+                            <FolderPathButton
+                              onFolderSelected={(path) => {
+                                setScriptVariables((state) => {
+                                  const scriptArguments = get(state, [values.name], []);
+                                  scriptArguments[index] = path;
+                                  return { ...state, [values.name]: scriptArguments };
+                                });
+                              }}
+                            />
+                          </Box>
+                        )}
+                        {argumentValues.value === "file" && (
+                          <Box sx={{ my: 1 }}>
+                            <FilePathButton
+                              types={["*"]}
+                              onFileSelected={(path) => {
+                                setScriptVariables((state) => {
+                                  const scriptArguments = get(state, [values.name], []);
+                                  scriptArguments[index] = path;
+                                  return { ...state, [values.name]: scriptArguments };
+                                });
+                              }}
+                            />
+                          </Box>
+                        )}
+                        {argumentValues.value === "label" && (
+                          <Box sx={{ my: 1 }}>
+                            <FormControlLabel
+                              control={
+                                <Checkbox
+                                  checked={
+                                    get(scriptVariables(), [values.name, index], "") ===
+                                    argumentValues.label
+                                  }
+                                  onChange={(event) => {
+                                    const checked = !event.target.checked;
+                                    setScriptVariables((state) => {
+                                      const scriptArguments = get(state, [values.name], []);
+                                      scriptArguments[index] = checked ? argumentValues.label : "";
+                                      return { ...state, [values.name]: scriptArguments };
+                                    });
+                                  }}
+                                />
+                              }
+                              label={argumentValues.label}
+                            />
+                          </Box>
+                        )}
+                      </Box>
                     </Box>
                     <Typography
                       variant="subtitle2"
@@ -234,7 +232,9 @@ export const ScriptRunner = () => {
                   <IconButton
                     color="error"
                     onClick={() => {
-                      emit("add_script", values.path);
+                      emit("add_script", {
+                        path: values.path,
+                      });
                     }}
                   >
                     <FileCopy />
@@ -243,11 +243,32 @@ export const ScriptRunner = () => {
                 <IconButton
                   color="error"
                   onClick={() => {
-                    emit("remove_script", values.path);
+                    emit("remove_script", {
+                      name: values.name,
+                      path: values.path,
+                      remove_from_disk: get(scriptsDiskRemove(), [values.name], false),
+                    });
                   }}
                 >
                   <DeleteIcon />
                 </IconButton>
+                {values.local && (
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={get(scriptsDiskRemove(), [values.name], false)}
+                        onChange={() => {
+                          const currentHidden = get(scriptsDiskRemove(), [values.name], false);
+                          setScriptsDiskRemove({
+                            ...scriptsDiskRemove(),
+                            [values.name]: !currentHidden,
+                          });
+                        }}
+                      />
+                    }
+                    label="Remove script"
+                  />
+                )}
               </Box>
             </CardActions>
           </ScriptCard>
