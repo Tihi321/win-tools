@@ -1,5 +1,5 @@
 {
-  "name": "tts",
+  "name": "win-tools",
   "version": "0.0.1",
   "description": "",
   "type": "module",
@@ -16,15 +16,15 @@
   "dependencies": {
     "@suid/material": "^0.16.0",
     "@suid/icons-material": "^0.7.0",
-    "@tauri-apps/plugin-dialog": "^2.0.0-beta.7",
+    "@tauri-apps/plugin-dialog": "^2.0.0-beta.8",
     "lodash": "^4.17.21",
-    "solid-js": "^1.8.17",
+    "solid-js": "^1.8.19",
     "solid-styled-components": "^0.28.5",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "@tauri-apps/api": "2.0.0-beta.15",
-    "@tauri-apps/cli": "2.0.0-beta.22",
+    "@tauri-apps/api": "2.0.0-beta.16",
+    "@tauri-apps/cli": "2.0.0-beta.23",
     "@types/lodash": "^4.14.201",
     "@types/uuid": "^9.0.7",
     "typescript": "^5.4.5",
