@@ -168,7 +168,7 @@ const ApiTester: Component = () => {
 
       <FormControlLabel
         control={
-          <Switch checked={useBackend()} onChange={(e) => setUseBackend(e.target.checked)} />
+          <Switch checked={useBackend()} onChange={(e) => setUseBackend(!e.target.checked)} />
         }
         label="Use Rust Backend"
       />
