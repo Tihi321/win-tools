@@ -16,6 +16,10 @@ Make and exe or bat file easy to use, with this custom ui
 
 Experience the ultimate convenience with TTS Audio Creator, the must-have program for converting text or text files into speech audio in your desired language. Designed with user-friendliness and efficiency in mind, TTS Audio Creator simplifies the process of generating high-quality audio from written content.
 
+### API Tester
+
+API Tester is a tool that allows you to test the API endpoints of your server. It's a great way to learn how to use an API and also to find out what kind of data it returns.
+
 ### Start
 
 ```bash
