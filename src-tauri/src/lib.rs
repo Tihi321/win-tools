@@ -2,7 +2,7 @@ mod scripts;
 mod tts;
 mod utils;
 
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use scripts::{
     disk::{add_script_to_disk, get_scripts_string, remove_script, save_script},
@@ -21,9 +21,69 @@ use utils::{
     structs::{AddFile, AudioFile, AudioText, RemoveFile},
 };
 
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ApiResponse {
+    status: u16,
+    headers: HashMap<String, String>,
+    body: String,
+}
+
+#[tauri::command]
+async fn make_api_request(
+    url: String,
+    method: String,
+    headers: Option<HashMap<String, String>>,
+    body: Option<String>,
+) -> Result<ApiResponse, String> {
+    let client = reqwest::Client::new();
+
+    let mut request = match method.to_uppercase().as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        _ => return Err("Unsupported HTTP method".to_string()),
+    };
+
+    if let Some(headers) = headers {
+        let mut header_map = HeaderMap::new();
+        for (key, value) in headers {
+            header_map.insert(
+                HeaderName::from_bytes(key.as_bytes()).map_err(|e| e.to_string())?,
+                HeaderValue::from_str(&value).map_err(|e| e.to_string())?,
+            );
+        }
+        request = request.headers(header_map);
+    }
+
+    if let Some(body) = body {
+        request = request.body(body);
+    }
+
+    let response = request.send().await.map_err(|e| e.to_string())?;
+
+    let status = response.status().as_u16();
+    let headers = response
+        .headers()
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+        .collect();
+    let body = response.text().await.map_err(|e| e.to_string())?;
+
+    Ok(ApiResponse {
+        status,
+        headers,
+        body,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![make_api_request])
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             let app_handle = app.app_handle();

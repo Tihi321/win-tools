@@ -15,6 +15,7 @@ import {
 import MenuIcon from "@suid/icons-material/Menu";
 import { replace, startCase } from "lodash";
 import { ScriptRunner } from "./tools/ScriptRunner/ScriptRunner";
+import ApiTester from "./tools/ApiTester/ApiTester";
 
 const Container = styled("div")`
   margin: 0;
@@ -24,7 +25,7 @@ const Container = styled("div")`
   color: ${(props) => props?.theme?.colors.text};
 `;
 
-const tools: string[] = ["script-runner", "text-to-speach"];
+const tools: string[] = ["script-runner", "text-to-speach", "api-tester"];
 
 export const App = () => {
   const [isDrawerOpen, setIsDrawerOpen] = createSignal<boolean>(false);
@@ -35,6 +36,10 @@ export const App = () => {
   const selectTool = (toolName: string) => {
     setSelectedTool(toolName);
   };
+
+  console.log({
+    tools,
+  });
 
   return (
     <Container>
@@ -73,8 +78,15 @@ export const App = () => {
         </List>
       </Drawer>
       <Box component="main" sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <Show when={selectedTool()}>{selectedTool() === "script-runner" && <ScriptRunner />}</Show>
-        <Show when={selectedTool()}>{selectedTool() === "text-to-speach" && <TextToSpeach />}</Show>
+        <Show when={selectedTool() === "script-runner"}>
+          <ScriptRunner />
+        </Show>
+        <Show when={selectedTool() === "text-to-speach"}>
+          <TextToSpeach />
+        </Show>
+        <Show when={selectedTool() === "api-tester"}>
+          <ApiTester />
+        </Show>
       </Box>
     </Container>
   );
