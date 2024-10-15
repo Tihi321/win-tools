@@ -71,24 +71,25 @@ const ApiTester: Component = () => {
         bodyContent = JSON.stringify(bodyObject);
       }
 
+      const options: RequestInit = {
+        method: method(),
+        headers: headersObject,
+      };
+
+      if (method() !== "GET") {
+        options["body"] = bodyContent;
+      }
+
       if (useBackend()) {
         console.log("Using Rust backend");
         const result = await invoke("make_api_request", {
           url: url(),
-          method: method(),
-          headers: headersObject,
-          body: bodyContent,
+          ...options,
         });
         console.log("Backend response:", result);
         setResponse(JSON.stringify(result, null, 2));
       } else {
         console.log("Using frontend-only request");
-        const options: RequestInit = {
-          method: method(),
-          headers: headersObject,
-          body: bodyContent,
-        };
-
         const res = await fetch(url(), options);
         const data = await res.text();
         console.log("Frontend response:", data);
