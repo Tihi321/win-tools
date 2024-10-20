@@ -20,6 +20,10 @@ Experience the ultimate convenience with TTS Audio Creator, the must-have progra
 
 API Tester is a tool that allows you to test the API endpoints of your server. It's a great way to learn how to use an API and also to find out what kind of data it returns.
 
+### Log monitor
+
+Log monitor is a tool that allows you to view the log of your application. It's a great way to find out what's happening in your app and how it behaves.
+
 ### Start
 
 ```bash

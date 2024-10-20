@@ -24,7 +24,7 @@ interface Preset {
   rawBody: string;
 }
 
-const ApiTester: Component = () => {
+export const ApiTester: Component = () => {
   const [url, setUrl] = createSignal("");
   const [method, setMethod] = createSignal("GET");
   const [headers, setHeaders] = createSignal<KeyValuePair[]>([{ key: "", value: "" }]);
@@ -205,5 +205,3 @@ const ApiTester: Component = () => {
     </Container>
   );
 };
-
-export default ApiTester;

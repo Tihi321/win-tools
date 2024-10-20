@@ -15,7 +15,8 @@ import {
 import MenuIcon from "@suid/icons-material/Menu";
 import { replace, startCase } from "lodash";
 import { ScriptRunner } from "./tools/ScriptRunner/ScriptRunner";
-import ApiTester from "./tools/ApiTester/ApiTester";
+import { ApiTester } from "./tools/ApiTester/ApiTester";
+import { LogMonitor } from "./tools/LogMonitor/LogMonitor";
 
 const Container = styled("div")`
   margin: 0;
@@ -25,7 +26,7 @@ const Container = styled("div")`
   color: ${(props) => props?.theme?.colors.text};
 `;
 
-const tools: string[] = ["script-runner", "text-to-speach", "api-tester"];
+const tools: string[] = ["script-runner", "text-to-speach", "api-tester", "log-monitor"];
 
 export const App = () => {
   const [isDrawerOpen, setIsDrawerOpen] = createSignal<boolean>(false);
@@ -36,10 +37,6 @@ export const App = () => {
   const selectTool = (toolName: string) => {
     setSelectedTool(toolName);
   };
-
-  console.log({
-    tools,
-  });
 
   return (
     <Container>
@@ -86,6 +83,9 @@ export const App = () => {
         </Show>
         <Show when={selectedTool() === "api-tester"}>
           <ApiTester />
+        </Show>
+        <Show when={selectedTool() === "log-monitor"}>
+          <LogMonitor />
         </Show>
       </Box>
     </Container>

@@ -2,7 +2,7 @@ mod scripts;
 mod tts;
 mod utils;
 
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, process::Command};
 
 use scripts::{
     disk::{add_script_to_disk, get_scripts_string, remove_script, save_script},
@@ -29,6 +29,27 @@ struct ApiResponse {
     status: u16,
     headers: HashMap<String, String>,
     body: String,
+}
+
+fn open_power_shell_window(filepath: &str) {
+    let powershell_command = format!(
+        "Start-Process powershell.exe -ArgumentList \"-NoExit\", \"-Command Get-Content -Path '{}' -Wait\"",
+        filepath
+    );
+
+    Command::new("powershell")
+        .args(&["-Command", &powershell_command])
+        .spawn()
+        .expect("Failed to open PowerShell window");
+}
+
+#[tauri::command]
+fn monitor_log_file(filepath: String) {
+    println!(
+        "Opening PowerShell window to monitor log file: {}",
+        filepath
+    );
+    open_power_shell_window(&filepath);
 }
 
 #[tauri::command]
@@ -83,7 +104,7 @@ async fn make_api_request(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![make_api_request])
+        .invoke_handler(tauri::generate_handler![make_api_request, monitor_log_file])
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             let app_handle = app.app_handle();
