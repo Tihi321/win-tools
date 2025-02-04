@@ -139,7 +139,7 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
         />
         <Button
           variant="contained"
-          disabled={!filePath() && !name()}
+          disabled={!filePath() || !name()}
           onClick={() => {
             emit("save_script", {
               name: name(),
