@@ -12,7 +12,7 @@ export const FilePathButton: Component<FilePathButtonProps> = (props) => {
   const onOpenFile = () => {
     try {
       openFile(props.types).then((selected: any) => {
-        return selected;
+        return props.onFileSelected(selected);
       });
     } catch (error) {
       console.error("Error opening file dialog:", error);

@@ -40,7 +40,6 @@ export const AddScriptModal: Component<AddScriptModalProps> = (props) => {
   const [selectedType, setSelectedType] = createSignal("text");
   const [selectedTypeLabel, setSelectedTypeLabel] = createSignal("");
   const [saveToDisk, setSaveToDisk] = createSignal(true);
-
   return (
     <DialogStyled open={true} onClose={props.onClose}>
       <DialogTitle>
