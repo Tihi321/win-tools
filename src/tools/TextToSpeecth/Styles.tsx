@@ -102,3 +102,18 @@ export const WideButton = styled(Button)`
 export const CreateButton = styled(Button)`
   width: 200px;
 `;
+
+export const PlayButtonsContainer = styled("div")`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+
+  .MuiButtonGroup-root {
+    background: ${(props) => props?.theme?.colors.secondary};
+    border-radius: 4px;
+  }
+`;

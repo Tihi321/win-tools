@@ -1,9 +1,9 @@
-import { createEffect, createSignal, createMemo, onMount } from "solid-js";
+import { createEffect, createSignal, createMemo, onMount, onCleanup } from "solid-js";
 import { listen, emit } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { get, map, filter, includes, isEmpty } from "lodash";
 import { Button } from "../../components/inputs/Button";
 import { VOICES_LIST } from "../../constants";
-import { loadLocalLanguage, loadUsedFile, saveLocalLanguage, saveUseFile } from "./local";
 import { FolderIcon } from "../../components/icons/FolderIcon";
 import {
   TextField,
@@ -27,10 +27,25 @@ import {
   TextFieldContainer,
   WideButton,
   Loader,
+  PlayButtonsContainer,
 } from "./Styles";
 import { RangeInput } from "../../components/inputs/RangeInput";
 
 type VoicesList = Array<{ name: string; lang: string }>;
+
+interface TtsConfig {
+  use_file: boolean;
+  play_mode: boolean;
+  play_mode_text: string;
+  last_voice: string;
+}
+
+type AudioStatus = "playing" | "stopped" | "ready";
+
+interface AudioPlaybackStatus {
+  status: AudioStatus;
+  file: string;
+}
 
 export const TextToSpeach = () => {
   const [voices, setVoices] = createSignal<VoicesList>([]);
@@ -39,18 +54,72 @@ export const TextToSpeach = () => {
   const [voiceGenerating, setVoiceGenerating] = createSignal(false);
   const [file, setFile] = createSignal("");
   const [text, setText] = createSignal("");
+  const [lastText, setLastText] = createSignal("");
   const [name, setName] = createSignal("");
   const [pitch, setPitch] = createSignal(1);
   const [rate, setRate] = createSignal(1);
   const [volume, setVolume] = createSignal(1);
+  const [playMode, setPlayMode] = createSignal(true);
+  // These signals are used by side effects and event handlers
+  // @ts-ignore - Used in checkAudioExists function
+  const [audioExists, setAudioExists] = createSignal(false);
+  const [audioStatus, setAudioStatus] = createSignal<AudioStatus>("stopped");
+  // @ts-ignore - Used by audio playback status event listeners
+  const [currentPlayingFile, setCurrentPlayingFile] = createSignal("");
 
   const shortVoices = createMemo(() =>
     filter(voices(), (voice) => includes(VOICES_LIST, voice.lang))
   );
 
+  const loadConfig = async () => {
+    try {
+      const config = await invoke<TtsConfig>("get_tts_config");
+      setUseFile(config.use_file);
+      setPlayMode(config.play_mode);
+      setSelectedVoice(config.last_voice);
+
+      if (config.play_mode && config.play_mode_text) {
+        setText(config.play_mode_text);
+        setLastText(config.play_mode_text);
+      }
+    } catch (error) {
+      console.error("Failed to load TTS config:", error);
+    }
+  };
+
   onMount(() => {
     emit("update_title", "Text to Speech");
     emit("get_voices_list", {});
+
+    // Load config from backend JSON file
+    loadConfig();
+
+    // Check if audio exists initially
+    checkAudioExists();
+
+    // Get initial audio playback status
+    getAudioPlaybackStatus();
+  });
+
+  // Listen for audio playback status updates from the backend
+  createEffect(async () => {
+    const unlisten = await listen<AudioPlaybackStatus>("audio_playback_status", (event) => {
+      if (event.payload) {
+        setAudioStatus(event.payload.status);
+        setCurrentPlayingFile(event.payload.file);
+      }
+    });
+
+    return () => {
+      unlisten();
+    };
+  });
+
+  onCleanup(() => {
+    // Stop audio when component unmounts
+    if (audioStatus() === "playing") {
+      stopAudio();
+    }
   });
 
   const voicesAvailable = createMemo(() => !isEmpty(voices()));
@@ -70,33 +139,87 @@ export const TextToSpeach = () => {
 
   createEffect(async () => {
     const unlisten = await listen("create_audio_response", () => {
-      setName("");
-      setText("");
+      // Save the last text used to create audio
+      setLastText(text());
+
+      // In play mode, save the text to backend config
+      if (playMode()) {
+        savePlayModeText(text());
+      }
+
+      // Don't clear text in play mode
+      if (!playMode()) {
+        setText("");
+        setName("");
+      }
+
       setFile("");
       setPitch(1);
       setRate(1);
       setVolume(1);
       setVoiceGenerating(false);
+      checkAudioExists();
+
+      // If we're in play mode, play the audio right after creation
+      if (playMode()) {
+        playAudio();
+      }
     });
 
     return () => unlisten();
   });
 
+  // Save text to backend when it changes in play mode
   createEffect(() => {
-    const language = loadLocalLanguage();
-    setSelectedVoice(language);
+    if (playMode() && text()) {
+      savePlayModeText(text());
+    }
   });
 
+  // Save voice selection to backend
   createEffect(() => {
-    const useFile = loadUsedFile();
-    setUseFile(useFile);
+    if (selectedVoice()) {
+      saveLastVoice(selectedVoice());
+    }
   });
 
-  const onCreateAudio = () => {
+  const saveUseFileConfig = async (value: boolean) => {
+    try {
+      await invoke("set_tts_use_file", { useFile: value });
+    } catch (error) {
+      console.error("Failed to save use file setting:", error);
+    }
+  };
+
+  const savePlayModeConfig = async (value: boolean) => {
+    try {
+      await invoke("set_tts_play_mode", { playMode: value });
+    } catch (error) {
+      console.error("Failed to save play mode setting:", error);
+    }
+  };
+
+  const savePlayModeText = async (value: string) => {
+    try {
+      await invoke("set_tts_play_mode_text", { text: value });
+    } catch (error) {
+      console.error("Failed to save play mode text:", error);
+    }
+  };
+
+  const saveLastVoice = async (value: string) => {
+    try {
+      await invoke("set_tts_last_voice", { voice: value });
+    } catch (error) {
+      console.error("Failed to save last voice:", error);
+    }
+  };
+
+  const createAudio = () => {
     if (useFile()) {
       emit("create_audio_from_file", {
         file: file(),
-        name: name() || "output",
+        name: playMode() ? "output" : name() || "output",
         voice: selectedVoice(),
         pitch: pitch(),
         rate: rate(),
@@ -105,7 +228,7 @@ export const TextToSpeach = () => {
     } else {
       emit("create_audio_from_text", {
         text: text(),
-        name: name() || "output",
+        name: playMode() ? "output" : name() || "output",
         voice: selectedVoice(),
         pitch: pitch(),
         rate: rate(),
@@ -116,12 +239,96 @@ export const TextToSpeach = () => {
     setVoiceGenerating(true);
   };
 
+  const playAudio = async () => {
+    try {
+      const fileName = playMode() ? "output" : name() || "output";
+      await invoke("play_audio", { name: fileName });
+    } catch (error) {
+      console.error("Error playing audio:", error);
+    }
+  };
+
+  const stopAudio = async () => {
+    try {
+      await invoke("stop_audio_playback");
+    } catch (error) {
+      console.error("Error stopping audio:", error);
+    }
+  };
+
+  const getAudioPlaybackStatus = async () => {
+    try {
+      const status = await invoke<AudioPlaybackStatus>("get_audio_playback_status");
+      setAudioStatus(status.status);
+      setCurrentPlayingFile(status.file);
+    } catch (error) {
+      console.error("Error getting audio status:", error);
+    }
+  };
+
+  const handlePlayOrCreate = async () => {
+    // If audio is currently playing, stop it
+    if (audioStatus() === "playing") {
+      stopAudio();
+      return;
+    }
+
+    if (playMode()) {
+      // In play mode:
+      // 1. Check if audio exists
+      // 2. If it exists and text is the same, just play it
+      // 3. If text is different or file doesn't exist, create new audio
+      const exists = await invoke<boolean>("check_audio_exists", { name: "output" });
+
+      if (exists && text() === lastText()) {
+        // Audio exists and text hasn't changed, just play it
+        playAudio();
+      } else {
+        // Text changed or audio doesn't exist, create new audio
+        createAudio();
+      }
+    } else {
+      // In normal mode, just create audio
+      createAudio();
+    }
+  };
+
+  const checkAudioExists = async () => {
+    try {
+      const checkName = playMode() ? "output" : name() || "output";
+      const exists = await invoke<boolean>("check_audio_exists", { name: checkName });
+      setAudioExists(exists);
+    } catch (error) {
+      console.error("Error checking if audio exists:", error);
+      setAudioExists(false);
+    }
+  };
+
   const onOpenExportFolder = () => {
     emit("open_export_folder", {});
   };
 
   const fetchVoices = () => {
     emit("refresh_voices_list", {});
+  };
+
+  const togglePlayMode = () => {
+    const newPlayModeValue = !playMode();
+    setPlayMode(newPlayModeValue);
+    savePlayModeConfig(newPlayModeValue);
+
+    // If switching to play mode, check if we have saved text
+    if (newPlayModeValue) {
+      loadConfig();
+    }
+
+    checkAudioExists();
+  };
+
+  const toggleUseFile = (event: any) => {
+    const checked = !event.target.checked;
+    setUseFile(checked);
+    saveUseFileConfig(checked);
   };
 
   return (
@@ -206,7 +413,7 @@ export const TextToSpeach = () => {
               value={selectedVoice()}
               onChange={(event) => {
                 setSelectedVoice(event.target.value as string);
-                saveLocalLanguage(event.target.value as string);
+                saveLastVoice(event.target.value as string);
               }}
               size="small"
             >
@@ -218,29 +425,36 @@ export const TextToSpeach = () => {
             </Select>
           </SelectContainer>
 
-          <TextFieldContainer>
-            <TextField
-              fullWidth
-              value={name()}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Name"
-              variant="outlined"
-            />
-          </TextFieldContainer>
-
-          <CreateButton onClick={onCreateAudio}>Create audio</CreateButton>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={useFile()}
-                onChange={(event: any) => {
-                  const checked = !event.target.checked;
-                  setUseFile(checked);
-                  saveUseFile(checked);
-                }}
+          {!playMode() && (
+            <TextFieldContainer>
+              <TextField
+                fullWidth
+                value={name()}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Name"
+                variant="outlined"
               />
-            }
+            </TextFieldContainer>
+          )}
+
+          <PlayButtonsContainer>
+            <CreateButton onClick={handlePlayOrCreate}>
+              {audioStatus() === "playing"
+                ? "Stop Audio"
+                : playMode()
+                ? "Play Audio"
+                : "Create Audio"}
+            </CreateButton>
+          </PlayButtonsContainer>
+
+          <FormControlLabel
+            control={<Checkbox checked={useFile()} onChange={toggleUseFile} />}
             label="Use file"
+          />
+
+          <FormControlLabel
+            control={<Checkbox checked={playMode()} onChange={togglePlayMode} />}
+            label="Play Mode"
           />
         </Footer>
       )}

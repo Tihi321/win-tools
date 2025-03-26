@@ -11,5 +11,22 @@ export const saveUseFile = (value: boolean) => {
 };
 
 export const loadUsedFile = (): boolean => {
-  return Boolean(localStorage.getItem("ttstool/useFile"));
+  return localStorage.getItem("ttstool/useFile") === "true";
+};
+
+export const savePlayMode = (value: boolean) => {
+  localStorage.setItem("ttstool/playMode", value.toString());
+};
+
+export const loadPlayMode = (): boolean => {
+  // Default to true if not set
+  return localStorage.getItem("ttstool/playMode") !== "false";
+};
+
+export const saveLastPlayModeText = (text: string) => {
+  localStorage.setItem("ttstool/lastPlayModeText", text);
+};
+
+export const loadLastPlayModeText = (): string => {
+  return localStorage.getItem("ttstool/lastPlayModeText") || "";
 };

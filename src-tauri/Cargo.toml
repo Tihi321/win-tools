@@ -31,6 +31,8 @@ winapi = { version = "=0.3.9", features = [
 tauri-plugin-dialog = "=2.2.0"
 msedge-tts = "=0.2.4"
 reqwest = "0.12.12"
+lazy_static = "1.4.0"
+rodio = "0.17.3"
 
 [features]
 # by default Tauri runs in production mode

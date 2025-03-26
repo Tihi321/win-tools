@@ -1,7 +1,6 @@
 mod scripts;
 mod tts;
 mod utils;
-
 use std::{collections::HashMap, path::Path, process::Command};
 
 use scripts::{
@@ -12,12 +11,17 @@ use scripts::{
 use serde_json::{self};
 use tauri::{Emitter, Listener, Manager};
 use tts::{
+    config::{
+        load_config, update_last_voice, update_play_mode, update_play_mode_text, update_use_file,
+        TtsConfig,
+    },
     disk::open_in_export_folder,
-    tts::{generate_tts_synthesis, get_voices_list_names, save_voices_list},
+    tts::{
+        check_audio_file_exists, generate_tts_synthesis, get_voices_list_names, save_voices_list,
+    },
 };
 use utils::{
     constants::WINDOW_LABEL,
-    index::create_window,
     structs::{AddFile, AudioFile, AudioText, RemoveFile},
 };
 
@@ -101,12 +105,209 @@ async fn make_api_request(
     })
 }
 
+#[tauri::command]
+async fn play_audio(name: String, app_handle: tauri::AppHandle) -> Result<bool, String> {
+    println!("⏯️ Play audio request received from UI with name: {}", name);
+
+    // Check if we're in play mode by loading the config
+    let config = tts::config::load_config();
+
+    // Determine the file name to use
+    let file_name = if config.play_mode {
+        // In play mode, always use the constant play file name
+        tts::constants::PLAY_MODE_AUDIO_FILE.to_string()
+    } else if name.is_empty() {
+        "output".to_string()
+    } else {
+        name.clone()
+    };
+
+    // For play mode, check if file exists, if not generate it from config
+    if config.play_mode && !tts::tts::check_audio_file_exists(&file_name) {
+        println!("🔄 Play mode audio file doesn't exist, generating it now");
+        // Generate audio using the current config settings
+        match tts::tts::generate_tts_synthesis(
+            &config.play_mode_text,
+            &file_name,
+            &config.last_voice,
+            1.0, // Default pitch
+            1.0, // Default rate
+            1.0, // Default volume
+        ) {
+            Ok(_) => println!("✅ Generated play mode audio successfully"),
+            Err(e) => return Err(format!("Failed to generate play mode audio: {}", e)),
+        }
+    }
+
+    // Get the full path to the audio file
+    let file_path = tts::tts::get_audio_file_path(&file_name)
+        .to_string_lossy()
+        .to_string();
+    println!("🔍 Resolved file path: {}", file_path);
+
+    // Verify file exists
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        println!("❌ File does not exist: {}", file_path);
+        println!("   - Is absolute path: {}", path.is_absolute());
+        println!("   - Parent directory: {:?}", path.parent());
+
+        // Try to list directory contents if parent exists
+        if let Some(parent) = path.parent() {
+            if parent.exists() {
+                println!("   - Parent directory exists, listing contents:");
+                match std::fs::read_dir(parent) {
+                    Ok(entries) => {
+                        for entry in entries {
+                            if let Ok(entry) = entry {
+                                println!("     * {}", entry.path().display());
+                            }
+                        }
+                    }
+                    Err(e) => println!("   - Could not read directory: {}", e),
+                }
+            }
+        }
+        return Err(format!("File does not exist: {}", file_path));
+    } else {
+        println!("✅ File exists and will attempt playback");
+
+        // Print detailed file information
+        match std::fs::metadata(path) {
+            Ok(metadata) => {
+                println!("   - File size: {} bytes", metadata.len());
+                println!("   - Is file: {}", metadata.is_file());
+                println!("   - Last modified: {:?}", metadata.modified().ok());
+            }
+            Err(e) => println!("   - Could not get metadata: {}", e),
+        }
+    }
+
+    match tts::tts::play_audio_backend(&file_path) {
+        Ok(_) => {
+            println!("🔊 Audio playback started successfully");
+
+            // Emit event to frontend about playback status
+            app_handle
+                .emit(
+                    "audio_playback_status",
+                    serde_json::json!({
+                        "status": "playing",
+                        "file": file_name
+                    }),
+                )
+                .unwrap_or_else(|e| {
+                    println!("❌ Failed to emit audio_playback_status event: {}", e);
+                    eprintln!("Failed to emit audio status: {}", e)
+                });
+
+            println!("✅ Emitted audio_playback_status event with playing status");
+            Ok(true)
+        }
+        Err(e) => {
+            println!("❌ Error playing audio: {}", e);
+            Err(format!("Failed to play audio: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn stop_audio_playback(app_handle: tauri::AppHandle) -> Result<bool, String> {
+    println!("⏹️ Stop audio request received from UI");
+
+    match tts::tts::stop_audio() {
+        Ok(_) => {
+            println!("🔇 Audio stopped successfully");
+
+            // Emit event to frontend about playback status
+            app_handle
+                .emit(
+                    "audio_playback_status",
+                    serde_json::json!({
+                        "status": "stopped",
+                        "file": ""
+                    }),
+                )
+                .unwrap_or_else(|e| {
+                    println!("❌ Failed to emit audio_playback_status event: {}", e);
+                    eprintln!("Failed to emit audio status: {}", e)
+                });
+
+            println!("✅ Emitted audio_playback_status event with stopped status");
+            Ok(true)
+        }
+        Err(e) => {
+            println!("❌ Error stopping audio: {}", e);
+            Err(format!("Failed to stop audio: {}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn get_audio_playback_status() -> serde_json::Value {
+    let is_playing = tts::tts::is_audio_playing();
+    let file = tts::tts::get_current_playing_file().unwrap_or_default();
+
+    serde_json::json!({
+        "status": if is_playing { "playing" } else { "stopped" },
+        "file": file
+    })
+}
+
+#[tauri::command]
+fn check_audio_exists(name: String) -> bool {
+    let file_name = if name.is_empty() {
+        "output".to_string()
+    } else {
+        name
+    };
+    check_audio_file_exists(&file_name)
+}
+
+#[tauri::command]
+fn get_tts_config() -> TtsConfig {
+    load_config()
+}
+
+#[tauri::command]
+fn set_tts_use_file(use_file: bool) -> Result<(), String> {
+    update_use_file(use_file).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_tts_play_mode(play_mode: bool) -> Result<(), String> {
+    update_play_mode(play_mode).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_tts_play_mode_text(text: String) -> Result<(), String> {
+    update_play_mode_text(&text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_tts_last_voice(voice: String) -> Result<(), String> {
+    update_last_voice(&voice).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![make_api_request, monitor_log_file])
+        .invoke_handler(tauri::generate_handler![
+            make_api_request,
+            monitor_log_file,
+            play_audio,
+            check_audio_exists,
+            get_tts_config,
+            set_tts_use_file,
+            set_tts_play_mode,
+            set_tts_play_mode_text,
+            set_tts_last_voice,
+            stop_audio_playback,
+            get_audio_playback_status,
+        ])
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
+            // Create app handles
             let app_handle = app.app_handle();
             let get_voices_handle = app_handle.clone();
             let refresh_hvoices_handle = app_handle.clone();
@@ -118,8 +319,13 @@ pub fn run() {
             let remove_script_file = app_handle.clone();
             let add_script_file = app_handle.clone();
 
-            let _ = create_window(&app).unwrap();
+            // Don't create a window here since it's already defined in tauri.conf.json
+            // The window with label "main" will be created automatically by Tauri
 
+            // Initialize the scripts database
+            let _ = scripts::disk::get_scripts_db_path();
+
+            // Register event listeners
             app.listen("update_title", move |event| {
                 let payload = event.payload().to_string();
                 let title = payload.trim_start_matches('"').trim_end_matches('"');
@@ -153,6 +359,7 @@ pub fn run() {
                 let value = event.payload();
                 match serde_json::from_str::<AudioText>(value) {
                     Ok(audio_payload) => {
+                        println!("📝 Creating audio from text");
                         let text = audio_payload.text;
                         let name = audio_payload.name;
                         let voice = audio_payload.voice;
@@ -160,22 +367,34 @@ pub fn run() {
                         let rate = audio_payload.rate;
                         let volume = audio_payload.volume;
 
-                        generate_tts_synthesis(
+                        match generate_tts_synthesis(
                             text.as_str(),
                             name.as_str(),
                             voice.as_str(),
                             pitch,
                             rate,
                             volume,
-                        )
-                        .unwrap();
-
-                        let window = create_text_hvoices_handle
-                            .get_webview_window(WINDOW_LABEL)
-                            .unwrap();
-                        window
-                            .emit_to(WINDOW_LABEL, "create_audio_response", true)
-                            .expect("Failed to emit event");
+                        ) {
+                            Ok(_) => {
+                                println!("✅ Successfully generated TTS audio");
+                                let window = create_text_hvoices_handle
+                                    .get_webview_window(WINDOW_LABEL)
+                                    .unwrap();
+                                window
+                                    .emit_to(WINDOW_LABEL, "create_audio_response", true)
+                                    .expect("Failed to emit event");
+                                println!("📣 Emitted create_audio_response event");
+                            }
+                            Err(e) => {
+                                println!("❌ Failed to generate TTS audio: {}", e);
+                                let window = create_text_hvoices_handle
+                                    .get_webview_window(WINDOW_LABEL)
+                                    .unwrap();
+                                window
+                                    .emit_to(WINDOW_LABEL, "create_audio_response", false)
+                                    .expect("Failed to emit event");
+                            }
+                        }
                     }
                     Err(e) => eprintln!("Failed to parse event payload: {}", e),
                 }
@@ -311,6 +530,17 @@ pub fn run() {
             app.listen("open_export_folder", move |_| {
                 open_in_export_folder().unwrap();
             });
+
+            app.listen("update_play_mode_text", move |event| {
+                let payload = event.payload().to_string();
+                let text = payload.trim_start_matches('"').trim_end_matches('"');
+                match tts::config::update_play_mode_text(text) {
+                    Ok(_) => println!("✅ Updated play mode text in config"),
+                    Err(e) => eprintln!("Failed to update play mode text: {}", e),
+                }
+            });
+
+            println!("Application setup completed successfully");
             Ok(())
         })
         .run(tauri::generate_context!())
