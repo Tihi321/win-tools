@@ -270,7 +270,7 @@ async fn play_audio(name: String, app_handle: tauri::AppHandle) -> Result<bool, 
         }
         Err(e) => {
             println!("❌ Error playing audio: {}", e);
-            Err(format!("Failed to play audio: {}", e))
+            Ok(false)
         }
     }
 }
@@ -380,7 +380,7 @@ async fn start_api_server(app_handle: tauri::AppHandle) {
     let cors = warp::cors()
         .allow_any_origin()
         .allow_headers(vec!["content-type"])
-        .allow_methods(vec!["GET", "POST", "OPTIONS"]);
+        .allow_methods(vec!["POST"]);
 
     // Define route for text-to-speech with proper error handling
     let tts_route = warp::path("tts")
@@ -460,6 +460,7 @@ async fn handle_tts_request(
         .unwrap_or_else(|e| {
             eprintln!("Failed to emit generating_audio event: {}", e);
         });
+    println!("✅ Emitted generating_audio TRUE event to show loader");
     // Release lock after emitting event
     drop(app_handle_lock);
 
@@ -523,6 +524,7 @@ async fn handle_tts_request(
                 .unwrap_or_else(|e| {
                     eprintln!("Failed to emit generating_audio completion event: {}", e);
                 });
+            println!("✅ Emitted generating_audio FALSE event to hide loader");
 
             // Verify file exists and wait for it to be ready before playing
             let max_retries = 5;
@@ -616,6 +618,7 @@ async fn handle_tts_request(
                 .unwrap_or_else(|e| {
                     eprintln!("Failed to emit generating_audio completion event: {}", e);
                 });
+            println!("✅ Emitted generating_audio FALSE event (on error) to hide loader");
 
             Ok(warp::reply::with_status(
                 warp::reply::json(&serde_json::json!({

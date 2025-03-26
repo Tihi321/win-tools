@@ -193,6 +193,18 @@ export const TextToSpeach = () => {
     return () => unlisten();
   });
 
+  // Listen for generating_audio events from API requests
+  createEffect(async () => {
+    const unlisten = await listen<boolean>("generating_audio", (event) => {
+      if (event.payload !== undefined) {
+        setVoiceGenerating(event.payload);
+        console.log("Generating audio state updated from API:", event.payload);
+      }
+    });
+
+    return () => unlisten();
+  });
+
   // Save text to backend when it changes in play mode
   createEffect(() => {
     if (playMode() && text()) {
