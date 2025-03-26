@@ -25,7 +25,6 @@ import {
   SelectContainer,
   TextareaContainer,
   TextFieldContainer,
-  WideButton,
   Loader,
   PlayButtonsContainer,
 } from "./Styles";
@@ -38,6 +37,9 @@ interface TtsConfig {
   play_mode: boolean;
   play_mode_text: string;
   last_voice: string;
+  pitch: number;
+  rate: number;
+  volume: number;
 }
 
 type AudioStatus = "playing" | "stopped" | "ready";
@@ -66,6 +68,11 @@ export const TextToSpeach = () => {
   const [audioStatus, setAudioStatus] = createSignal<AudioStatus>("stopped");
   // @ts-ignore - Used by audio playback status event listeners
   const [currentPlayingFile, setCurrentPlayingFile] = createSignal("");
+  // Add server information
+  const [serverInfo] = createSignal({
+    url: "http://127.0.0.1:7891",
+    endpoint: "/tts",
+  });
 
   const shortVoices = createMemo(() =>
     filter(voices(), (voice) => includes(VOICES_LIST, voice.lang))
@@ -77,6 +84,9 @@ export const TextToSpeach = () => {
       setUseFile(config.use_file);
       setPlayMode(config.play_mode);
       setSelectedVoice(config.last_voice);
+      setPitch(config.pitch);
+      setRate(config.rate);
+      setVolume(config.volume);
 
       if (config.play_mode && config.play_mode_text) {
         setText(config.play_mode_text);
@@ -107,6 +117,20 @@ export const TextToSpeach = () => {
       if (event.payload) {
         setAudioStatus(event.payload.status);
         setCurrentPlayingFile(event.payload.file);
+      }
+    });
+
+    return () => {
+      unlisten();
+    };
+  });
+
+  // Listen for text updates from the API server
+  createEffect(async () => {
+    const unlisten = await listen<string>("text_updated_from_api", (event) => {
+      if (event.payload) {
+        setText(event.payload);
+        setLastText(event.payload);
       }
     });
 
@@ -202,6 +226,7 @@ export const TextToSpeach = () => {
   const savePlayModeText = async (value: string) => {
     try {
       await invoke("set_tts_play_mode_text", { text: value });
+      console.log("Saved text to config:", value);
     } catch (error) {
       console.error("Failed to save play mode text:", error);
     }
@@ -215,24 +240,42 @@ export const TextToSpeach = () => {
     }
   };
 
+  const savePitch = async (value: number) => {
+    try {
+      await invoke("set_tts_pitch", { pitch: value });
+    } catch (error) {
+      console.error("Failed to save pitch setting:", error);
+    }
+  };
+
+  const saveRate = async (value: number) => {
+    try {
+      await invoke("set_tts_rate", { rate: value });
+    } catch (error) {
+      console.error("Failed to save rate setting:", error);
+    }
+  };
+
+  const saveVolume = async (value: number) => {
+    try {
+      await invoke("set_tts_volume", { volume: value });
+    } catch (error) {
+      console.error("Failed to save volume setting:", error);
+    }
+  };
+
   const createAudio = () => {
     if (useFile()) {
       emit("create_audio_from_file", {
         file: file(),
         name: playMode() ? "output" : name() || "output",
         voice: selectedVoice(),
-        pitch: pitch(),
-        rate: rate(),
-        volume: volume(),
       });
     } else {
       emit("create_audio_from_text", {
         text: text(),
         name: playMode() ? "output" : name() || "output",
         voice: selectedVoice(),
-        pitch: pitch(),
-        rate: rate(),
-        volume: volume(),
       });
     }
 
@@ -333,131 +376,192 @@ export const TextToSpeach = () => {
 
   return (
     <Container>
-      {voiceGenerating() && (
-        <Loader>
-          <CircularProgress />
-          <div>Generating voice...</div>
-        </Loader>
-      )}
-      {!voiceGenerating() && (
-        <Main>
-          {!voicesAvailable() && (
-            <FileContainer>
-              <WideButton datatype="secondary" onClick={fetchVoices}>
-                Get Voices
-              </WideButton>
-            </FileContainer>
-          )}
-          {voicesAvailable() && useFile() && (
-            <FileContainer>
-              <FilePathButton types={["txt"]} onFileSelected={setFile} />
-              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: "bold" }}>
-                {file()}
-              </Typography>
-            </FileContainer>
-          )}
-          {voicesAvailable() && !useFile() && (
-            <TextareaContainer>
-              <TextField
-                multiline
-                fullWidth
-                rows={20}
-                value={text()}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Enter text here"
-              />
-            </TextareaContainer>
-          )}
-          <Box sx={{ mb: 2 }}>
-            <Typography gutterBottom>Pitch: {pitch().toFixed(1)}</Typography>
-            <RangeInput
-              type="range"
-              min="0.5"
-              max="2"
-              step="0.1"
-              value={pitch()}
-              onInput={(e) => setPitch(parseFloat(e.currentTarget.value))}
+      <Main>
+        {voiceGenerating() && (
+          <Loader>
+            <CircularProgress />
+            <div>Generating voice...</div>
+          </Loader>
+        )}
+        {!voiceGenerating() && (
+          <Main>
+            {voicesAvailable() && useFile() && (
+              <FileContainer>
+                <FilePathButton types={["txt"]} onFileSelected={setFile} />
+                <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: "bold" }}>
+                  {file()}
+                </Typography>
+              </FileContainer>
+            )}
+            {!useFile() && (
+              <Box
+                sx={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  flex: 1,
+                  height: "calc(100vh - 200px)",
+                }}
+              >
+                <TextareaContainer style={{ width: "100%", flex: 1, display: "flex" }}>
+                  <TextField
+                    multiline
+                    fullWidth
+                    value={text()}
+                    onChange={(e) => setText(e.target.value)}
+                    onBlur={() => {
+                      if (playMode()) {
+                        console.log("Text field blurred, saving text:", text());
+                        savePlayModeText(text());
+                      }
+                    }}
+                    placeholder="Enter text here"
+                  />
+                </TextareaContainer>
+              </Box>
+            )}
+            <Box sx={{ width: "100%" }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  gap: 4,
+                  width: "100%",
+                }}
+              >
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography gutterBottom>Pitch: {pitch().toFixed(1)}</Typography>
+                    <RangeInput
+                      type="range"
+                      min="0.5"
+                      max="2"
+                      step="0.1"
+                      value={pitch()}
+                      onInput={(e) => {
+                        const newValue = parseFloat(e.currentTarget.value);
+                        setPitch(newValue);
+                        savePitch(newValue);
+                      }}
+                    />
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography gutterBottom>Rate: {rate().toFixed(1)}</Typography>
+                    <RangeInput
+                      type="range"
+                      min="0.5"
+                      max="2"
+                      step="0.1"
+                      value={rate()}
+                      onInput={(e) => {
+                        const newValue = parseFloat(e.currentTarget.value);
+                        setRate(newValue);
+                        saveRate(newValue);
+                      }}
+                    />
+                  </Box>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography gutterBottom>Volume: {volume().toFixed(1)}</Typography>
+                    <RangeInput
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={volume()}
+                      onInput={(e) => {
+                        const newValue = parseFloat(e.currentTarget.value);
+                        setVolume(newValue);
+                        saveVolume(newValue);
+                      }}
+                    />
+                  </Box>
+                </Box>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    padding: 2,
+                    backgroundColor: "#f5f5f5",
+                    borderRadius: 1,
+                    fontSize: "0.8rem",
+                    alignSelf: "center",
+                    minWidth: "160px",
+                  }}
+                >
+                  <Typography variant="subtitle2" fontWeight="bold">
+                    API Server
+                  </Typography>
+                  <Typography variant="caption">
+                    {serverInfo().url}
+                    {serverInfo().endpoint}
+                  </Typography>
+                  <Typography variant="caption">POST {'{"text":"Your text"}'}</Typography>
+                </Box>
+              </Box>
+            </Box>
+          </Main>
+        )}
+        {!voiceGenerating() && (
+          <Footer>
+            <Button onClick={onOpenExportFolder}>
+              <FolderIcon />
+            </Button>
+            <Button onClick={fetchVoices} title="Refresh Voices List">
+              🔄
+            </Button>
+            <SelectContainer>
+              <Select
+                value={selectedVoice()}
+                onChange={(event) => {
+                  setSelectedVoice(event.target.value as string);
+                  saveLastVoice(event.target.value as string);
+                }}
+                size="small"
+              >
+                {map(shortVoices(), (voice) => (
+                  <MenuItem value={voice.name}>
+                    {voice.name} - {voice.lang}
+                  </MenuItem>
+                ))}
+              </Select>
+            </SelectContainer>
+
+            {!playMode() && (
+              <TextFieldContainer>
+                <TextField
+                  fullWidth
+                  value={name()}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Name"
+                  variant="outlined"
+                />
+              </TextFieldContainer>
+            )}
+
+            <PlayButtonsContainer>
+              <CreateButton onClick={handlePlayOrCreate}>
+                {audioStatus() === "playing"
+                  ? "Stop Audio"
+                  : playMode()
+                  ? "Play Audio"
+                  : "Create Audio"}
+              </CreateButton>
+            </PlayButtonsContainer>
+
+            <FormControlLabel
+              control={<Checkbox checked={useFile()} onChange={toggleUseFile} />}
+              label="Use file"
             />
-          </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography gutterBottom>Rate: {rate().toFixed(1)}</Typography>
-            <RangeInput
-              type="range"
-              min="0.5"
-              max="2"
-              step="0.1"
-              value={rate()}
-              onInput={(e) => setRate(parseFloat(e.currentTarget.value))}
+
+            <FormControlLabel
+              control={<Checkbox checked={playMode()} onChange={togglePlayMode} />}
+              label="Play Mode"
             />
-          </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography gutterBottom>Volume: {volume().toFixed(1)}</Typography>
-            <RangeInput
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={volume()}
-              onInput={(e) => setVolume(parseFloat(e.currentTarget.value))}
-            />
-          </Box>
-        </Main>
-      )}
-      {!voiceGenerating() && (
-        <Footer>
-          <Button onClick={onOpenExportFolder}>
-            <FolderIcon />
-          </Button>
-          <SelectContainer>
-            <Select
-              value={selectedVoice()}
-              onChange={(event) => {
-                setSelectedVoice(event.target.value as string);
-                saveLastVoice(event.target.value as string);
-              }}
-              size="small"
-            >
-              {map(shortVoices(), (voice) => (
-                <MenuItem value={voice.name}>
-                  {voice.name} - {voice.lang}
-                </MenuItem>
-              ))}
-            </Select>
-          </SelectContainer>
-
-          {!playMode() && (
-            <TextFieldContainer>
-              <TextField
-                fullWidth
-                value={name()}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Name"
-                variant="outlined"
-              />
-            </TextFieldContainer>
-          )}
-
-          <PlayButtonsContainer>
-            <CreateButton onClick={handlePlayOrCreate}>
-              {audioStatus() === "playing"
-                ? "Stop Audio"
-                : playMode()
-                ? "Play Audio"
-                : "Create Audio"}
-            </CreateButton>
-          </PlayButtonsContainer>
-
-          <FormControlLabel
-            control={<Checkbox checked={useFile()} onChange={toggleUseFile} />}
-            label="Use file"
-          />
-
-          <FormControlLabel
-            control={<Checkbox checked={playMode()} onChange={togglePlayMode} />}
-            label="Play Mode"
-          />
-        </Footer>
-      )}
+          </Footer>
+        )}
+      </Main>
     </Container>
   );
 };

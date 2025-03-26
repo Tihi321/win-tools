@@ -13,6 +13,9 @@ pub struct TtsConfig {
     pub play_mode: bool,
     pub play_mode_text: String,
     pub last_voice: String,
+    pub pitch: f32,
+    pub rate: f32,
+    pub volume: f32,
 }
 
 impl Default for TtsConfig {
@@ -22,6 +25,9 @@ impl Default for TtsConfig {
             play_mode: true,
             play_mode_text: String::new(),
             last_voice: "en-US-AndrewMultilingualNeural".to_string(),
+            pitch: 1.0,
+            rate: 1.0,
+            volume: 1.0,
         }
     }
 }
@@ -64,7 +70,7 @@ pub fn load_config() -> TtsConfig {
     }
 }
 
-pub fn save_config(config: &TtsConfig) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_config(config: &TtsConfig) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = get_config_path();
 
     // Ensure config directory exists
@@ -78,23 +84,39 @@ pub fn save_config(config: &TtsConfig) -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-pub fn update_use_file(use_file: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn update_use_file(use_file: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut config = load_config();
     config.use_file = use_file;
     save_config(&config)
 }
 
-pub fn update_play_mode(play_mode: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn update_play_mode(play_mode: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut config = load_config();
     config.play_mode = play_mode;
     save_config(&config)
 }
 
-pub fn update_play_mode_text(text: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn update_play_mode_text(
+    text: &str,
+    skip_delete: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut config = load_config();
     config.play_mode_text = text.to_string();
 
     // If text changes, delete the play mode audio file to force regeneration
+    // But skip this if explicitly requested (for API calls that will generate immediately after)
+    if config.play_mode && !skip_delete {
+        let _ = crate::tts::tts::delete_play_mode_audio();
+    }
+
+    save_config(&config)
+}
+
+pub fn update_last_voice(voice: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut config = load_config();
+    config.last_voice = voice.to_string();
+
+    // If voice changes, delete the play mode audio file to force regeneration
     if config.play_mode {
         let _ = crate::tts::tts::delete_play_mode_audio();
     }
@@ -102,11 +124,35 @@ pub fn update_play_mode_text(text: &str) -> Result<(), Box<dyn std::error::Error
     save_config(&config)
 }
 
-pub fn update_last_voice(voice: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn update_pitch(pitch: f32) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut config = load_config();
-    config.last_voice = voice.to_string();
+    config.pitch = pitch;
 
-    // If voice changes, delete the play mode audio file to force regeneration
+    // If pitch changes, delete the play mode audio file to force regeneration
+    if config.play_mode {
+        let _ = crate::tts::tts::delete_play_mode_audio();
+    }
+
+    save_config(&config)
+}
+
+pub fn update_rate(rate: f32) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut config = load_config();
+    config.rate = rate;
+
+    // If rate changes, delete the play mode audio file to force regeneration
+    if config.play_mode {
+        let _ = crate::tts::tts::delete_play_mode_audio();
+    }
+
+    save_config(&config)
+}
+
+pub fn update_volume(volume: f32) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut config = load_config();
+    config.volume = volume;
+
+    // If volume changes, delete the play mode audio file to force regeneration
     if config.play_mode {
         let _ = crate::tts::tts::delete_play_mode_audio();
     }

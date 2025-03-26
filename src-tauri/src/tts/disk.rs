@@ -3,7 +3,7 @@ use std::process::Command;
 
 use crate::tts::constants::EXPORT_FOLDER_NAME;
 
-pub fn open_in_export_folder() -> std::io::Result<()> {
+pub fn open_in_export_folder() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // open the export folder from current directory
     let export_folder = Path::new(EXPORT_FOLDER_NAME);
 
@@ -18,6 +18,7 @@ pub fn open_in_export_folder() -> std::io::Result<()> {
 
     Command::new(command)
         .arg(export_folder.to_str().unwrap())
-        .status()
-        .map(|_| ())
+        .status()?;
+
+    Ok(())
 }

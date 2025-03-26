@@ -26,12 +26,12 @@ static mut PLAYBACK_THREAD: Option<std::thread::JoinHandle<()>> = None;
 // Control channel for stopping audio
 static mut STOP_REQUESTED: bool = false;
 
-fn get_voice(name: &str) -> Result<Voice, Box<dyn std::error::Error>> {
+fn get_voice(name: &str) -> Result<Voice, Box<dyn std::error::Error + Send + Sync>> {
     let voices = get_voices_list().unwrap();
     let voice = voices
         .into_iter()
         .find(|voice| voice.short_name.as_deref() == Some(name))
-        .ok_or_else(|| "Voice not found")?;
+        .ok_or_else(|| "Voice not found".to_string())?;
     Ok(voice)
 }
 
@@ -88,7 +88,7 @@ fn get_audio_stream(
     pitch: f32,
     rate: f32,
     volume: f32,
-) -> Result<SynthesizedAudio, Box<dyn std::error::Error>> {
+) -> Result<SynthesizedAudio, Box<dyn std::error::Error + Send + Sync>> {
     // Scale pitch and rate to the range expected by the API
     let pitch_scaled = (pitch * 50.0) as i32 - 50; // Map 0.0-2.0 to -50 to 50
     let rate_scaled = (rate * 100.0) as i32 - 100; // Map 0.0-2.0 to -100 to 100
@@ -111,30 +111,92 @@ pub fn generate_tts_synthesis(
     pitch: f32,
     rate: f32,
     volume: f32,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let audio_stream = get_audio_stream(text, voice, pitch, rate, volume)?;
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    println!(
+        "🔄 Starting TTS synthesis for '{}' with voice '{}'",
+        name, voice
+    );
 
-    // Save the audio bytes to a file
-    let mut path = PathBuf::from(EXPORT_FOLDER_NAME);
-    std::fs::create_dir_all(&path).unwrap(); // This line creates the "export" directory if it does not exist
-    path.push(format!("{}.mp3", name));
-    let mut file = File::create(path)?;
-    file.write_all(&audio_stream.audio_bytes)?;
-    println!("Audio saved to disk.");
+    if text.is_empty() {
+        return Err("Text is empty".into());
+    }
+
+    let audio_stream = get_audio_stream(text, voice, pitch, rate, volume)?;
+    println!(
+        "✅ Obtained audio stream, size: {} bytes",
+        audio_stream.audio_bytes.len()
+    );
+
+    // Get the full path to the audio file using our updated function
+    let path = get_audio_file_path(name);
+    println!("📝 Will save to: {}", path.display());
+
+    // Ensure the directory exists (redundancy check)
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            println!("📁 Creating parent directory: {}", parent.display());
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+        }
+    }
+
+    // Clear any existing file first if it exists
+    if path.exists() {
+        println!("🗑️ Removing existing file");
+        std::fs::remove_file(&path)
+            .map_err(|e| format!("Failed to remove existing file {}: {}", path.display(), e))?;
+    }
+
+    // Create and write the file with better error handling
+    let mut file = File::create(&path)
+        .map_err(|e| format!("Failed to create file {}: {}", path.display(), e))?;
+
+    file.write_all(&audio_stream.audio_bytes)
+        .map_err(|e| format!("Failed to write audio data to {}: {}", path.display(), e))?;
+
+    // Flush to ensure data is written to disk
+    file.flush()
+        .map_err(|e| format!("Failed to flush file {}: {}", path.display(), e))?;
+
+    // Explicitly drop the file to close it
+    drop(file);
+
+    // Verify the file was created successfully
+    let metadata = std::fs::metadata(&path)
+        .map_err(|e| format!("Failed to get metadata for {}: {}", path.display(), e))?;
+
+    println!(
+        "✅ Audio saved to disk: {} bytes at {}",
+        metadata.len(),
+        path.display()
+    );
 
     // Optionally, handle audio metadata if needed
     for metadata in audio_stream.audio_metadata {
-        println!("Audio metadata: {:?}", metadata);
+        println!("ℹ️ Audio metadata: {:?}", metadata);
     }
 
     Ok(())
 }
 
 pub fn get_audio_file_path(name: &str) -> PathBuf {
-    let mut path = PathBuf::new();
-    path.push(EXPORT_FOLDER_NAME);
-    path.push(format!("{}.mp3", name));
-    path
+    // Get the current working directory as the base
+    let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+    // Create the export folder path as an absolute path
+    let export_path = current_dir.join(EXPORT_FOLDER_NAME);
+
+    // Ensure the directory exists
+    if !export_path.exists() {
+        let _ = std::fs::create_dir_all(&export_path);
+        println!("🔨 Created export directory at: {}", export_path.display());
+    }
+
+    // Create the full path to the audio file
+    let file_path = export_path.join(format!("{}.mp3", name));
+    println!("📁 Audio file path: {}", file_path.display());
+
+    file_path
 }
 
 pub fn check_audio_file_exists(name: &str) -> bool {
@@ -314,8 +376,21 @@ pub fn get_current_playing_file() -> Option<String> {
     unsafe { CURRENT_AUDIO_FILE.clone() }
 }
 
-pub fn delete_play_mode_audio() -> Result<(), Box<dyn std::error::Error>> {
+pub fn delete_play_mode_audio() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = get_audio_file_path(crate::tts::constants::PLAY_MODE_AUDIO_FILE);
+
+    // Check if the file is currently playing - don't delete if it is
+    let current_file = get_current_playing_file();
+    if let Some(file) = current_file {
+        if file.contains(crate::tts::constants::PLAY_MODE_AUDIO_FILE) {
+            println!(
+                "⚠️ Not deleting play mode audio file as it's currently playing: {}",
+                path.display()
+            );
+            return Ok(());
+        }
+    }
+
     if path.exists() {
         println!("🗑️ Deleting play mode audio file: {}", path.display());
         std::fs::remove_file(path)?;

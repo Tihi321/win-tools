@@ -3,6 +3,13 @@ mod tts;
 mod utils;
 use std::{collections::HashMap, path::Path, process::Command};
 
+// Add warp server imports
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tts::config::{update_pitch, update_rate, update_volume};
+use warp::Filter;
+
 use scripts::{
     disk::{add_script_to_disk, get_scripts_string, remove_script, save_script},
     structs::{Script, ScriptSaveWindow},
@@ -134,7 +141,52 @@ async fn play_audio(name: String, app_handle: tauri::AppHandle) -> Result<bool, 
             1.0, // Default rate
             1.0, // Default volume
         ) {
-            Ok(_) => println!("✅ Generated play mode audio successfully"),
+            Ok(_) => {
+                println!("✅ Generated play mode audio successfully");
+
+                // After generating, add a small delay to ensure the file is ready
+                // and verify that the file exists and has content
+                let file_path = tts::tts::get_audio_file_path(&file_name);
+
+                // Wait for the file to be fully written
+                let max_retries = 5;
+                let mut retry_count = 0;
+                let mut file_ready = false;
+
+                while retry_count < max_retries && !file_ready {
+                    if file_path.exists() {
+                        match std::fs::metadata(&file_path) {
+                            Ok(metadata) => {
+                                if metadata.len() > 0 {
+                                    file_ready = true;
+                                    println!(
+                                        "📁 File verified: {} bytes ready for playback",
+                                        metadata.len()
+                                    );
+                                    break;
+                                } else {
+                                    println!("⏳ File exists but is empty, waiting...");
+                                }
+                            }
+                            Err(e) => println!("⚠️ Error checking file metadata: {}", e),
+                        }
+                    }
+
+                    // Sleep for a short time before retrying
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    retry_count += 1;
+                    println!(
+                        "⏳ Waiting for file (attempt {}/{})",
+                        retry_count, max_retries
+                    );
+                }
+
+                if !file_ready {
+                    return Err(
+                        "File generation completed but file is not ready for playback".to_string(),
+                    );
+                }
+            }
             Err(e) => return Err(format!("Failed to generate play mode audio: {}", e)),
         }
     }
@@ -144,6 +196,9 @@ async fn play_audio(name: String, app_handle: tauri::AppHandle) -> Result<bool, 
         .to_string_lossy()
         .to_string();
     println!("🔍 Resolved file path: {}", file_path);
+
+    // Add a small sleep to ensure file system operations are complete
+    std::thread::sleep(std::time::Duration::from_millis(100));
 
     // Verify file exists
     let path = Path::new(&file_path);
@@ -175,11 +230,20 @@ async fn play_audio(name: String, app_handle: tauri::AppHandle) -> Result<bool, 
         // Print detailed file information
         match std::fs::metadata(path) {
             Ok(metadata) => {
-                println!("   - File size: {} bytes", metadata.len());
+                let file_size = metadata.len();
+                println!("   - File size: {} bytes", file_size);
                 println!("   - Is file: {}", metadata.is_file());
                 println!("   - Last modified: {:?}", metadata.modified().ok());
+
+                // Additional check to ensure the file has content
+                if file_size == 0 {
+                    return Err("File exists but is empty (0 bytes)".to_string());
+                }
             }
-            Err(e) => println!("   - Could not get metadata: {}", e),
+            Err(e) => {
+                println!("   - Could not get metadata: {}", e);
+                return Err(format!("Failed to get file metadata: {}", e));
+            }
         }
     }
 
@@ -281,12 +345,246 @@ fn set_tts_play_mode(play_mode: bool) -> Result<(), String> {
 
 #[tauri::command]
 fn set_tts_play_mode_text(text: String) -> Result<(), String> {
-    update_play_mode_text(&text).map_err(|e| e.to_string())
+    update_play_mode_text(&text, false).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn set_tts_last_voice(voice: String) -> Result<(), String> {
     update_last_voice(&voice).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_tts_pitch(pitch: f32) -> Result<(), String> {
+    update_pitch(pitch).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_tts_rate(rate: f32) -> Result<(), String> {
+    update_rate(rate).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_tts_volume(volume: f32) -> Result<(), String> {
+    update_volume(volume).map_err(|e| e.to_string())
+}
+
+// Add API server module to lib.rs
+async fn start_api_server(app_handle: tauri::AppHandle) {
+    let port = 7891; // Using a less common port for safety
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+
+    // Store app_handle for use in routes
+    let app_handle = Arc::new(Mutex::new(app_handle));
+
+    // Define route for text-to-speech with proper error handling
+    let tts_route = warp::path("tts")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and(with_app_handle(app_handle.clone()))
+        .and_then(|payload, handle| async move {
+            println!("🌐 Received TTS API request");
+
+            // Catch any panics during request handling
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| async {
+                handle_tts_request(payload, handle).await
+            }))
+            .map_err(|_| "Handler panicked")
+            .and_then(|future| Ok(future))
+            {
+                Ok(future) => match future.await {
+                    Ok(response) => Ok(response),
+                    Err(rejection) => {
+                        println!("❌ API request resulted in rejection: {:?}", rejection);
+                        Err(rejection)
+                    }
+                },
+                Err(e) => {
+                    println!("❌ Fatal error in API handler: {}", e);
+                    Err(warp::reject::reject())
+                }
+            }
+        });
+
+    println!("🌐 Starting API server on http://{}", addr);
+    println!("🔊 TTS endpoint available at http://{}/tts", addr);
+
+    warp::serve(tts_route).run(addr).await;
+}
+
+// Helper function to share app_handle with routes
+fn with_app_handle(
+    app_handle: Arc<Mutex<tauri::AppHandle>>,
+) -> impl Filter<Extract = (Arc<Mutex<tauri::AppHandle>>,), Error = std::convert::Infallible> + Clone
+{
+    warp::any().map(move || app_handle.clone())
+}
+
+// TTS request handler
+async fn handle_tts_request(
+    payload: serde_json::Value,
+    app_handle: Arc<Mutex<tauri::AppHandle>>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    println!("📝 Received TTS request: {:?}", payload);
+
+    // Extract text from request
+    let text = match payload.get("text") {
+        Some(text) => text.as_str().unwrap_or(""),
+        None => "",
+    };
+
+    if text.is_empty() {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({
+                "error": "Text is required"
+            })),
+            warp::http::StatusCode::BAD_REQUEST,
+        ));
+    }
+
+    println!("📄 Processing text: {}", text);
+
+    // Update the config with the new text, but skip deletion since we'll generate right after
+    if let Err(e) = tts::config::update_play_mode_text(text, true) {
+        // Use a thread-safe error message instead of the error itself
+        let error_message = format!("Failed to update config: {}", e);
+        println!("❌ {}", error_message);
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({
+                "error": error_message
+            })),
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+        ));
+    }
+
+    // Load the updated config for voice info
+    let config = tts::config::load_config();
+    println!("📚 Using voice: {}", config.last_voice);
+
+    // Make sure the export directory exists before we try to generate audio
+    let play_file = tts::constants::PLAY_MODE_AUDIO_FILE;
+    let file_path = tts::tts::get_audio_file_path(play_file);
+    println!("🎯 Target file path: {}", file_path.display());
+
+    // Use match with thread-safe error handling
+    let result = tts::tts::generate_tts_synthesis(
+        text,
+        play_file,
+        &config.last_voice,
+        config.pitch,
+        config.rate,
+        config.volume,
+    );
+
+    match result {
+        Ok(_) => {
+            println!("✅ Generated audio from API request");
+
+            // Double-check that the file exists before continuing
+            if !file_path.exists() {
+                println!(
+                    "⚠️ Warning: File wasn't created even though generation didn't report errors"
+                );
+                return Ok(warp::reply::with_status(
+                    warp::reply::json(&serde_json::json!({
+                        "error": "File wasn't created successfully even though generation completed"
+                    })),
+                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                ));
+            }
+
+            // Get the app handle to play the audio and update UI
+            let app_handle_lock = app_handle.lock().await;
+
+            // Verify file exists and wait for it to be ready before playing
+            let max_retries = 5;
+            let mut retry_count = 0;
+            let mut file_ready = false;
+
+            while retry_count < max_retries && !file_ready {
+                if file_path.exists() {
+                    // Check if file is fully written
+                    match std::fs::metadata(&file_path) {
+                        Ok(metadata) => {
+                            if metadata.len() > 0 {
+                                file_ready = true;
+                                println!("📁 Audio file verified: {} bytes", metadata.len());
+                            } else {
+                                println!("⏳ Audio file exists but is empty, retrying...");
+                            }
+                        }
+                        Err(e) => println!("⚠️ Failed to read file metadata: {}", e),
+                    }
+                } else {
+                    println!(
+                        "⚠️ File does not exist during verification: {}",
+                        file_path.display()
+                    );
+                }
+
+                if !file_ready {
+                    println!(
+                        "⏳ Waiting for file to be ready (attempt {}/{})",
+                        retry_count + 1,
+                        max_retries
+                    );
+                    // Short delay before retry
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    retry_count += 1;
+                }
+            }
+
+            if !file_ready {
+                return Ok(warp::reply::with_status(
+                    warp::reply::json(&serde_json::json!({
+                        "error": "Generated file not ready for playback after multiple attempts"
+                    })),
+                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                ));
+            }
+
+            // Play the audio
+            println!("🔊 Attempting to play audio");
+            match play_audio(String::new(), app_handle_lock.clone()).await {
+                Ok(_) => {
+                    app_handle_lock
+                        .get_webview_window(WINDOW_LABEL)
+                        .unwrap()
+                        .emit_to(WINDOW_LABEL, "text_updated_from_api", text)
+                        .unwrap_or_else(|e| {
+                            eprintln!("Failed to emit text_updated_from_api event: {}", e);
+                        });
+
+                    Ok(warp::reply::with_status(
+                        warp::reply::json(&serde_json::json!({
+                            "success": true,
+                            "message": "Text processed and audio playing"
+                        })),
+                        warp::http::StatusCode::OK,
+                    ))
+                }
+                Err(e) => {
+                    println!("❌ Error playing audio: {}", e);
+                    Ok(warp::reply::with_status(
+                        warp::reply::json(&serde_json::json!({
+                            "error": format!("Failed to play audio: {}", e)
+                        })),
+                        warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ))
+                }
+            }
+        }
+        Err(e) => {
+            // Convert error to string for thread safety
+            let error_message = format!("Failed to generate audio: {}", e);
+            println!("❌ {}", error_message);
+            Ok(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "error": error_message
+                })),
+                warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -302,6 +600,9 @@ pub fn run() {
             set_tts_play_mode,
             set_tts_play_mode_text,
             set_tts_last_voice,
+            set_tts_pitch,
+            set_tts_rate,
+            set_tts_volume,
             stop_audio_playback,
             get_audio_playback_status,
         ])
@@ -309,6 +610,7 @@ pub fn run() {
         .setup(move |app| {
             // Create app handles
             let app_handle = app.app_handle();
+            let api_server_handle = app_handle.clone();
             let get_voices_handle = app_handle.clone();
             let refresh_hvoices_handle = app_handle.clone();
             let create_text_hvoices_handle = app_handle.clone();
@@ -363,17 +665,17 @@ pub fn run() {
                         let text = audio_payload.text;
                         let name = audio_payload.name;
                         let voice = audio_payload.voice;
-                        let pitch = audio_payload.pitch;
-                        let rate = audio_payload.rate;
-                        let volume = audio_payload.volume;
+
+                        // Load config for pitch, rate, and volume
+                        let config = tts::config::load_config();
 
                         match generate_tts_synthesis(
                             text.as_str(),
                             name.as_str(),
                             voice.as_str(),
-                            pitch,
-                            rate,
-                            volume,
+                            config.pitch,
+                            config.rate,
+                            config.volume,
                         ) {
                             Ok(_) => {
                                 println!("✅ Successfully generated TTS audio");
@@ -500,18 +802,18 @@ pub fn run() {
                         let file = audio_payload.file;
                         let name = audio_payload.name;
                         let voice = audio_payload.voice;
-                        let pitch = audio_payload.pitch;
-                        let rate = audio_payload.rate;
-                        let volume = audio_payload.volume;
+
+                        // Load config for pitch, rate, and volume
+                        let config = tts::config::load_config();
 
                         let text = std::fs::read_to_string(file).unwrap();
                         generate_tts_synthesis(
                             text.as_str(),
                             name.as_str(),
                             voice.as_str(),
-                            pitch,
-                            rate,
-                            volume,
+                            config.pitch,
+                            config.rate,
+                            config.volume,
                         )
                         .unwrap();
 
@@ -528,19 +830,27 @@ pub fn run() {
             });
 
             app.listen("open_export_folder", move |_| {
-                open_in_export_folder().unwrap();
+                if let Err(e) = open_in_export_folder() {
+                    eprintln!("Failed to open export folder: {}", e);
+                }
             });
 
             app.listen("update_play_mode_text", move |event| {
                 let payload = event.payload().to_string();
                 let text = payload.trim_start_matches('"').trim_end_matches('"');
-                match tts::config::update_play_mode_text(text) {
+                match tts::config::update_play_mode_text(text, false) {
                     Ok(_) => println!("✅ Updated play mode text in config"),
                     Err(e) => eprintln!("Failed to update play mode text: {}", e),
                 }
             });
 
             println!("Application setup completed successfully");
+
+            // Start the API server in a separate task
+            tauri::async_runtime::spawn(async move {
+                start_api_server(api_server_handle).await;
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())

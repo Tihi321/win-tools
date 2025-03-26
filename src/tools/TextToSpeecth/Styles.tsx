@@ -5,6 +5,7 @@ export const Container = styled("div")`
   display: flex;
   flex: 1;
   flex-direction: column;
+  height: 100vh;
 `;
 
 export const Main = styled("div")`
@@ -12,6 +13,7 @@ export const Main = styled("div")`
   flex: 1;
   flex-direction: column;
   padding: 8px;
+  height: calc(100vh - 60px); /* Subtract footer height */
 `;
 
 export const Footer = styled("div")`
@@ -40,15 +42,21 @@ export const TextareaContainer = styled("div")`
   height: 100%;
   flex: 1;
   display: flex;
+  overflow: auto;
 
   .MuiOutlinedInput-root {
-    padding: 0;
+    height: 100%;
+    padding: 8px;
+  }
+
+  .MuiInputBase-input {
+    height: 100% !important;
   }
 
   textarea {
-    background: ${(props) => props?.theme?.colors.lightBackground};
     border-radius: 6px;
-    padding: 8px;
+    min-height: 400px;
+    overflow: auto !important;
   }
 `;
 
