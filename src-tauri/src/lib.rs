@@ -380,7 +380,7 @@ async fn start_api_server(app_handle: tauri::AppHandle) {
     let cors = warp::cors()
         .allow_any_origin()
         .allow_headers(vec!["content-type"])
-        .allow_methods(vec!["POST"]);
+        .allow_methods(vec!["GET", "POST", "OPTIONS"]);
 
     // Define route for text-to-speech with proper error handling
     let tts_route = warp::path("tts")
@@ -451,6 +451,18 @@ async fn handle_tts_request(
 
     println!("📄 Processing text: {}", text);
 
+    // Emit the generating_audio event to show loader in UI
+    let app_handle_lock = app_handle.lock().await;
+    app_handle_lock
+        .get_webview_window(WINDOW_LABEL)
+        .unwrap()
+        .emit_to(WINDOW_LABEL, "generating_audio", true)
+        .unwrap_or_else(|e| {
+            eprintln!("Failed to emit generating_audio event: {}", e);
+        });
+    // Release lock after emitting event
+    drop(app_handle_lock);
+
     // Update the config with the new text, but skip deletion since we'll generate right after
     if let Err(e) = tts::config::update_play_mode_text(text, true) {
         // Use a thread-safe error message instead of the error itself
@@ -502,6 +514,15 @@ async fn handle_tts_request(
 
             // Get the app handle to play the audio and update UI
             let app_handle_lock = app_handle.lock().await;
+
+            // Signal that generation is complete
+            app_handle_lock
+                .get_webview_window(WINDOW_LABEL)
+                .unwrap()
+                .emit_to(WINDOW_LABEL, "generating_audio", false)
+                .unwrap_or_else(|e| {
+                    eprintln!("Failed to emit generating_audio completion event: {}", e);
+                });
 
             // Verify file exists and wait for it to be ready before playing
             let max_retries = 5;
@@ -585,6 +606,17 @@ async fn handle_tts_request(
             // Convert error to string for thread safety
             let error_message = format!("Failed to generate audio: {}", e);
             println!("❌ {}", error_message);
+
+            // Signal that generation failed
+            let app_handle_lock = app_handle.lock().await;
+            app_handle_lock
+                .get_webview_window(WINDOW_LABEL)
+                .unwrap()
+                .emit_to(WINDOW_LABEL, "generating_audio", false)
+                .unwrap_or_else(|e| {
+                    eprintln!("Failed to emit generating_audio completion event: {}", e);
+                });
+
             Ok(warp::reply::with_status(
                 warp::reply::json(&serde_json::json!({
                     "error": error_message
