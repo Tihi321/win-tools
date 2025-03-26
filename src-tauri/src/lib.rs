@@ -376,6 +376,12 @@ async fn start_api_server(app_handle: tauri::AppHandle) {
     // Store app_handle for use in routes
     let app_handle = Arc::new(Mutex::new(app_handle));
 
+    // Create a CORS layer to allow requests from anywhere
+    let cors = warp::cors()
+        .allow_any_origin()
+        .allow_headers(vec!["content-type"])
+        .allow_methods(vec!["POST"]);
+
     // Define route for text-to-speech with proper error handling
     let tts_route = warp::path("tts")
         .and(warp::post())
@@ -403,10 +409,12 @@ async fn start_api_server(app_handle: tauri::AppHandle) {
                     Err(warp::reject::reject())
                 }
             }
-        });
+        })
+        .with(cors); // Apply CORS to the route
 
     println!("🌐 Starting API server on http://{}", addr);
     println!("🔊 TTS endpoint available at http://{}/tts", addr);
+    println!("🔓 CORS is disabled - API accessible from any domain");
 
     warp::serve(tts_route).run(addr).await;
 }
