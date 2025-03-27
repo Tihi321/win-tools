@@ -40,6 +40,7 @@ interface TtsConfig {
   pitch: number;
   rate: number;
   volume: number;
+  api_port: number;
 }
 
 type AudioStatus = "playing" | "stopped" | "ready";
@@ -68,11 +69,16 @@ export const TextToSpeach = () => {
   const [audioStatus, setAudioStatus] = createSignal<AudioStatus>("stopped");
   // @ts-ignore - Used by audio playback status event listeners
   const [currentPlayingFile, setCurrentPlayingFile] = createSignal("");
-  // Add server information
-  const [serverInfo] = createSignal({
-    url: "http://127.0.0.1:7891",
+  // Add API port signal
+  const [apiPort, setApiPort] = createSignal(7891);
+  // Update server information to use the port from state
+  const serverInfo = createMemo(() => ({
+    url: `http://127.0.0.1:${apiPort()}`,
     endpoint: "/tts",
-  });
+  }));
+
+  // Add notification state but without using Snackbar/Alert
+  const [notificationMessage, setNotificationMessage] = createSignal("");
 
   const shortVoices = createMemo(() =>
     filter(voices(), (voice) => includes(VOICES_LIST, voice.lang))
@@ -87,6 +93,7 @@ export const TextToSpeach = () => {
       setPitch(config.pitch);
       setRate(config.rate);
       setVolume(config.volume);
+      setApiPort(config.api_port);
 
       if (config.play_mode && config.play_mode_text) {
         setText(config.play_mode_text);
@@ -276,6 +283,30 @@ export const TextToSpeach = () => {
     }
   };
 
+  const saveApiPort = async (port: number) => {
+    try {
+      await invoke("set_tts_api_port", { port });
+      console.log("API port saved:", port);
+      // Show notification when port is changed
+      setNotificationMessage(
+        "Port updated. Changes will take effect after restarting the application."
+      );
+
+      // Clear notification after 5 seconds
+      setTimeout(() => {
+        setNotificationMessage("");
+      }, 5000);
+    } catch (error) {
+      console.error("Failed to save API port:", error);
+      setNotificationMessage("Failed to save port setting.");
+
+      // Clear notification after 5 seconds
+      setTimeout(() => {
+        setNotificationMessage("");
+      }, 5000);
+    }
+  };
+
   const createAudio = () => {
     if (useFile()) {
       emit("create_audio_from_file", {
@@ -388,6 +419,26 @@ export const TextToSpeach = () => {
 
   return (
     <Container>
+      {/* Add a simple notification display */}
+      {notificationMessage() && (
+        <Box
+          sx={{
+            position: "fixed",
+            top: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: "#2196f3",
+            color: "white",
+            padding: "10px 20px",
+            borderRadius: "4px",
+            zIndex: 9999,
+            boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
+          }}
+        >
+          {notificationMessage()}
+        </Box>
+      )}
+
       <Main>
         {voiceGenerating() && (
           <Loader>
@@ -499,12 +550,36 @@ export const TextToSpeach = () => {
                     borderRadius: 1,
                     fontSize: "0.8rem",
                     alignSelf: "center",
-                    minWidth: "160px",
+                    minWidth: "190px",
                   }}
                 >
                   <Typography variant="subtitle2" fontWeight="bold">
                     API Server
                   </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                    <Typography variant="caption" sx={{ mr: 1 }}>
+                      Port:
+                    </Typography>
+                    <TextField
+                      size="small"
+                      variant="outlined"
+                      type="number"
+                      inputProps={{
+                        min: 1024,
+                        max: 65535,
+                        style: { padding: "4px 8px" },
+                      }}
+                      value={apiPort()}
+                      onChange={(e) => {
+                        const port = parseInt(e.target.value);
+                        if (port >= 1024 && port <= 65535) {
+                          setApiPort(port);
+                          saveApiPort(port);
+                        }
+                      }}
+                      sx={{ width: "80px" }}
+                    />
+                  </Box>
                   <Typography variant="caption">
                     {serverInfo().url}
                     {serverInfo().endpoint}

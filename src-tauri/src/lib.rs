@@ -7,7 +7,7 @@ use std::{collections::HashMap, path::Path, process::Command};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tts::config::{update_pitch, update_rate, update_volume};
+use tts::config::{update_api_port, update_pitch, update_rate, update_volume};
 use warp::Filter;
 
 use scripts::{
@@ -368,9 +368,16 @@ fn set_tts_volume(volume: f32) -> Result<(), String> {
     update_volume(volume).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn set_tts_api_port(port: u16) -> Result<(), String> {
+    update_api_port(port).map_err(|e| e.to_string())
+}
+
 // Add API server module to lib.rs
 async fn start_api_server(app_handle: tauri::AppHandle) {
-    let port = 7891; // Using a less common port for safety
+    // Get port from config, defaulting to 7891 if loading fails
+    let config = tts::config::load_config();
+    let port = config.api_port; // Use port from config
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
     // Store app_handle for use in routes
@@ -646,6 +653,7 @@ pub fn run() {
             set_tts_pitch,
             set_tts_rate,
             set_tts_volume,
+            set_tts_api_port,
             stop_audio_playback,
             get_audio_playback_status,
         ])

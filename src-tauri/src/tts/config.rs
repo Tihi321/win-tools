@@ -16,6 +16,7 @@ pub struct TtsConfig {
     pub pitch: f32,
     pub rate: f32,
     pub volume: f32,
+    pub api_port: u16,
 }
 
 impl Default for TtsConfig {
@@ -28,6 +29,7 @@ impl Default for TtsConfig {
             pitch: 1.0,
             rate: 1.0,
             volume: 1.0,
+            api_port: 7891,
         }
     }
 }
@@ -157,5 +159,11 @@ pub fn update_volume(volume: f32) -> Result<(), Box<dyn std::error::Error + Send
         let _ = crate::tts::tts::delete_play_mode_audio();
     }
 
+    save_config(&config)
+}
+
+pub fn update_api_port(port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut config = load_config();
+    config.api_port = port;
     save_config(&config)
 }
