@@ -412,10 +412,12 @@ async fn start_api_server(app_handle: tauri::AppHandle) {
     let app_handle = Arc::new(Mutex::new(app_handle));
 
     // Create a CORS layer to allow requests from anywhere
-    let cors = warp::cors()
-        .allow_any_origin()
-        .allow_headers(vec!["content-type"])
-        .allow_methods(vec!["POST"]);
+    let make_cors = || {
+        warp::cors()
+            .allow_any_origin()
+            .allow_headers(vec!["content-type"])
+            .allow_methods(vec!["POST"])
+    };
 
     // Define route for text-to-speech with proper error handling
     let tts_route = warp::path("tts")
@@ -445,13 +447,46 @@ async fn start_api_server(app_handle: tauri::AppHandle) {
                 }
             }
         })
-        .with(cors); // Apply CORS to the route
+        .with(make_cors()); // Apply CORS to the route
+
+    // Define route for stopping audio playback
+    let stop_route = warp::path("stop")
+        .and(warp::post())
+        .and(with_app_handle(app_handle.clone()))
+        .and_then(|handle| async move {
+            println!("🌐 Received stop audio API request");
+
+            // Catch any panics during request handling
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| async {
+                handle_stop_request(handle).await
+            }))
+            .map_err(|_| "Handler panicked")
+            .and_then(|future| Ok(future))
+            {
+                Ok(future) => match future.await {
+                    Ok(response) => Ok(response),
+                    Err(rejection) => {
+                        println!("❌ API stop request resulted in rejection: {:?}", rejection);
+                        Err(rejection)
+                    }
+                },
+                Err(e) => {
+                    println!("❌ Fatal error in API stop handler: {}", e);
+                    Err(warp::reject::reject())
+                }
+            }
+        })
+        .with(make_cors()); // Apply CORS to the route
 
     println!("🌐 Starting API server on http://{}", addr);
     println!("🔊 TTS endpoint available at http://{}/tts", addr);
+    println!("⏹️ Stop endpoint available at http://{}/stop", addr);
     println!("🔓 CORS is disabled - API accessible from any domain");
 
-    warp::serve(tts_route).run(addr).await;
+    // Combine routes
+    let routes = tts_route.or(stop_route);
+
+    warp::serve(routes).run(addr).await;
 }
 
 // Helper function to share app_handle with routes
@@ -658,6 +693,55 @@ async fn handle_tts_request(
             Ok(warp::reply::with_status(
                 warp::reply::json(&serde_json::json!({
                     "error": error_message
+                })),
+                warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+            ))
+        }
+    }
+}
+
+// Stop audio request handler
+async fn handle_stop_request(
+    app_handle: Arc<Mutex<tauri::AppHandle>>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    println!("⏹️ Processing stop audio request from API");
+
+    // Get the app handle to stop the audio and update UI
+    let app_handle_lock = app_handle.lock().await;
+
+    // Stop the audio using the existing function
+    match tts::tts::stop_audio() {
+        Ok(_) => {
+            println!("✅ Successfully stopped audio from API request");
+
+            // Emit event to frontend about playback status
+            app_handle_lock
+                .emit(
+                    "audio_playback_status",
+                    serde_json::json!({
+                        "status": "stopped",
+                        "file": ""
+                    }),
+                )
+                .unwrap_or_else(|e| {
+                    println!("❌ Failed to emit audio_playback_status event: {}", e);
+                    eprintln!("Failed to emit audio status: {}", e)
+                });
+
+            Ok(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "success": true,
+                    "message": "Audio playback stopped"
+                })),
+                warp::http::StatusCode::OK,
+            ))
+        }
+        Err(e) => {
+            println!("❌ Error stopping audio from API: {}", e);
+
+            Ok(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "error": format!("Failed to stop audio: {}", e)
                 })),
                 warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             ))

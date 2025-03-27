@@ -81,7 +81,8 @@ export const TextToSpeach = () => {
   // Update server information to use the port from state
   const serverInfo = createMemo(() => ({
     url: `http://127.0.0.1:${apiPort()}`,
-    endpoint: "/tts",
+    tts_endpoint: "/tts",
+    stop_endpoint: "/stop",
   }));
 
   // Add notification state but without using Snackbar/Alert
@@ -673,10 +674,15 @@ export const TextToSpeach = () => {
                       />
                     </Box>
                     <Typography variant="caption">
-                      {serverInfo().url}
-                      {serverInfo().endpoint}
+                      TTS: {serverInfo().url}
+                      {serverInfo().tts_endpoint}
                     </Typography>
                     <Typography variant="caption">POST {'{"text":"Your text"}'}</Typography>
+                    <Typography variant="caption">
+                      Stop: {serverInfo().url}
+                      {serverInfo().stop_endpoint}
+                    </Typography>
+                    <Typography variant="caption">POST {"{}"} to stop playback</Typography>
                   </Box>
                 )}
               </Box>
