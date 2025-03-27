@@ -3,6 +3,9 @@ mod tts;
 mod utils;
 use std::{collections::HashMap, path::Path, process::Command};
 
+// Add clap for command line argument parsing
+use clap::{App, Arg};
+
 // Add warp server imports
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -373,6 +376,12 @@ fn set_tts_api_port(port: u16) -> Result<(), String> {
     update_api_port(port).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn is_api_server_running() -> bool {
+    let config = tts::config::load_config();
+    config.api_enabled
+}
+
 // Add API server module to lib.rs
 async fn start_api_server(app_handle: tauri::AppHandle) {
     // Get port from config, defaulting to 7891 if loading fails
@@ -638,8 +647,64 @@ async fn handle_tts_request(
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    let _ = tauri::Builder::default()
+pub fn run(args: Vec<String>) {
+    // Parse command line arguments
+    let matches = App::new("TTS Tools")
+        .version("1.0.0")
+        .author("Tihomir Selak")
+        .about("Text to Speech Tools")
+        .arg(
+            Arg::with_name("api")
+                .long("api")
+                .help("Start the API server")
+                .takes_value(false),
+        )
+        .arg(
+            Arg::with_name("background")
+                .long("background")
+                .help("Run in background mode (API server only, no UI)")
+                .takes_value(false),
+        )
+        .get_matches_from(args);
+
+    // Determine if API server should start
+    let start_api = matches.is_present("api");
+
+    // Determine if we should run in background mode
+    let background_mode = matches.is_present("background");
+
+    // In background mode, we always start the API server
+    let start_api = start_api || background_mode;
+
+    // Update the api_enabled field in the config
+    if let Err(e) = tts::config::update_api_enabled(start_api) {
+        eprintln!("Failed to update API enabled status in config: {}", e);
+    }
+
+    // Configure the application builder
+    let mut builder = tauri::Builder::default();
+
+    // If we're in background mode, configure window settings before creation
+    if background_mode {
+        println!("🔍 Running in background mode (API server only, no UI)");
+
+        // Configure the window events to hide it when it receives focus
+        builder = builder.on_window_event(move |window, event| {
+            if window.label() == WINDOW_LABEL {
+                match event {
+                    tauri::WindowEvent::Focused(_) => {
+                        // Hide the window as soon as it gets focused
+                        let _ = window.hide();
+                        println!("✅ Hiding main window in background mode");
+                    }
+                    _ => {}
+                }
+            }
+        });
+    }
+
+    // Complete the builder configuration
+    builder = builder
         .invoke_handler(tauri::generate_handler![
             make_api_request,
             monitor_log_file,
@@ -656,254 +721,311 @@ pub fn run() {
             set_tts_api_port,
             stop_audio_playback,
             get_audio_playback_status,
+            is_api_server_running,
         ])
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
+            // In background mode, try additional methods to keep the window hidden
+            if background_mode {
+                // Set activation policy on macOS
+                #[cfg(target_os = "macos")]
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+                // On Windows and Linux, we rely on the window event handler to hide the window
+            }
+
             // Create app handles
             let app_handle = app.app_handle();
             let api_server_handle = app_handle.clone();
-            let get_voices_handle = app_handle.clone();
-            let refresh_hvoices_handle = app_handle.clone();
-            let create_text_hvoices_handle = app_handle.clone();
-            let create_file_hvoices_handle = app_handle.clone();
-            let update_window_title = app_handle.clone();
-            let get_scripts = app_handle.clone();
-            let save_script_file = app_handle.clone();
-            let remove_script_file = app_handle.clone();
-            let add_script_file = app_handle.clone();
 
-            // Don't create a window here since it's already defined in tauri.conf.json
-            // The window with label "main" will be created automatically by Tauri
+            // Initialize only what's needed based on the mode
+            if !background_mode {
+                // In normal mode, initialize all UI components
+                let get_voices_handle = app_handle.clone();
+                let refresh_hvoices_handle = app_handle.clone();
+                let create_text_hvoices_handle = app_handle.clone();
+                let create_file_hvoices_handle = app_handle.clone();
+                let update_window_title = app_handle.clone();
+                let get_scripts = app_handle.clone();
+                let save_script_file = app_handle.clone();
+                let remove_script_file = app_handle.clone();
+                let add_script_file = app_handle.clone();
 
-            // Initialize the scripts database
-            let _ = scripts::disk::get_scripts_db_path();
+                // Initialize the scripts database
+                let _ = scripts::disk::get_scripts_db_path();
 
-            // Register event listeners
-            app.listen("update_title", move |event| {
-                let payload = event.payload().to_string();
-                let title = payload.trim_start_matches('"').trim_end_matches('"');
+                // Register event listeners
+                app.listen("update_title", move |event| {
+                    let payload = event.payload().to_string();
+                    let title = payload.trim_start_matches('"').trim_end_matches('"');
 
-                let _ = update_window_title
-                    .get_webview_window(WINDOW_LABEL)
-                    .unwrap()
-                    .set_title(title);
-            });
+                    let _ = update_window_title
+                        .get_webview_window(WINDOW_LABEL)
+                        .unwrap()
+                        .set_title(title);
+                });
 
-            app.listen("get_voices_list", move |_| {
-                let voices = get_voices_list_names();
-                let window = get_voices_handle.get_webview_window(WINDOW_LABEL).unwrap();
-                window
-                    .emit_to(WINDOW_LABEL, "get_voices_list_response", voices)
-                    .expect("Failed to emit event");
-            });
+                app.listen("get_voices_list", move |_| {
+                    let voices = get_voices_list_names();
+                    let window = get_voices_handle.get_webview_window(WINDOW_LABEL).unwrap();
+                    window
+                        .emit_to(WINDOW_LABEL, "get_voices_list_response", voices)
+                        .expect("Failed to emit event");
+                });
 
-            app.listen("refresh_voices_list", move |_| {
-                save_voices_list();
-                let voices = get_voices_list_names();
-                let window = refresh_hvoices_handle
-                    .get_webview_window(WINDOW_LABEL)
-                    .unwrap();
-                window
-                    .emit_to(WINDOW_LABEL, "get_voices_list_response", voices)
-                    .expect("Failed to emit event");
-            });
+                app.listen("refresh_voices_list", move |_| {
+                    save_voices_list();
+                    let voices = get_voices_list_names();
+                    let window = refresh_hvoices_handle
+                        .get_webview_window(WINDOW_LABEL)
+                        .unwrap();
+                    window
+                        .emit_to(WINDOW_LABEL, "get_voices_list_response", voices)
+                        .expect("Failed to emit event");
+                });
 
-            app.listen("create_audio_from_text", move |event| {
-                let value = event.payload();
-                match serde_json::from_str::<AudioText>(value) {
-                    Ok(audio_payload) => {
-                        println!("📝 Creating audio from text");
-                        let text = audio_payload.text;
-                        let name = audio_payload.name;
-                        let voice = audio_payload.voice;
+                app.listen("create_audio_from_text", move |event| {
+                    let value = event.payload();
+                    match serde_json::from_str::<AudioText>(value) {
+                        Ok(audio_payload) => {
+                            println!("📝 Creating audio from text");
+                            let text = audio_payload.text;
+                            let name = audio_payload.name;
+                            let voice = audio_payload.voice;
 
-                        // Load config for pitch, rate, and volume
-                        let config = tts::config::load_config();
+                            // Load config for pitch, rate, and volume
+                            let config = tts::config::load_config();
 
-                        match generate_tts_synthesis(
-                            text.as_str(),
-                            name.as_str(),
-                            voice.as_str(),
-                            config.pitch,
-                            config.rate,
-                            config.volume,
-                        ) {
-                            Ok(_) => {
-                                println!("✅ Successfully generated TTS audio");
-                                let window = create_text_hvoices_handle
-                                    .get_webview_window(WINDOW_LABEL)
-                                    .unwrap();
-                                window
-                                    .emit_to(WINDOW_LABEL, "create_audio_response", true)
-                                    .expect("Failed to emit event");
-                                println!("📣 Emitted create_audio_response event");
-                            }
-                            Err(e) => {
-                                println!("❌ Failed to generate TTS audio: {}", e);
-                                let window = create_text_hvoices_handle
-                                    .get_webview_window(WINDOW_LABEL)
-                                    .unwrap();
-                                window
-                                    .emit_to(WINDOW_LABEL, "create_audio_response", false)
-                                    .expect("Failed to emit event");
+                            match generate_tts_synthesis(
+                                text.as_str(),
+                                name.as_str(),
+                                voice.as_str(),
+                                config.pitch,
+                                config.rate,
+                                config.volume,
+                            ) {
+                                Ok(_) => {
+                                    println!("✅ Successfully generated TTS audio");
+                                    let window = create_text_hvoices_handle
+                                        .get_webview_window(WINDOW_LABEL)
+                                        .unwrap();
+                                    window
+                                        .emit_to(WINDOW_LABEL, "create_audio_response", true)
+                                        .expect("Failed to emit event");
+                                    println!("📣 Emitted create_audio_response event");
+                                }
+                                Err(e) => {
+                                    println!("❌ Failed to generate TTS audio: {}", e);
+                                    let window = create_text_hvoices_handle
+                                        .get_webview_window(WINDOW_LABEL)
+                                        .unwrap();
+                                    window
+                                        .emit_to(WINDOW_LABEL, "create_audio_response", false)
+                                        .expect("Failed to emit event");
+                                }
                             }
                         }
+                        Err(e) => eprintln!("Failed to parse event payload: {}", e),
                     }
-                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
-                }
-            });
+                });
 
-            app.listen("get_scripts", move |_| {
-                let scripts = get_scripts_string().expect("Failed to get scripts");
-                get_scripts
-                    .get_webview_window(WINDOW_LABEL)
-                    .unwrap()
-                    .emit_to(WINDOW_LABEL, "scripts", scripts)
-                    .expect("Failed to emit event");
-            });
+                app.listen("get_scripts", move |_| {
+                    let scripts = get_scripts_string().expect("Failed to get scripts");
+                    get_scripts
+                        .get_webview_window(WINDOW_LABEL)
+                        .unwrap()
+                        .emit_to(WINDOW_LABEL, "scripts", scripts)
+                        .expect("Failed to emit event");
+                });
 
-            app.listen("save_script", move |event| {
-                let value = event.payload();
-                match serde_json::from_str::<ScriptSaveWindow>(value) {
-                    Ok(window_script) => {
-                        save_script(
-                            window_script.path,
-                            window_script.name,
-                            window_script.script_args,
-                            window_script.save,
-                        )
-                        .unwrap();
-                        let scripts = get_scripts_string().expect("Failed to get scripts");
-                        save_script_file
-                            .get_webview_window(WINDOW_LABEL)
-                            .unwrap()
-                            .emit_to(WINDOW_LABEL, "scripts", scripts)
-                            .expect("Failed to emit event");
+                app.listen("save_script", move |event| {
+                    let value = event.payload();
+                    match serde_json::from_str::<ScriptSaveWindow>(value) {
+                        Ok(window_script) => {
+                            save_script(
+                                window_script.path,
+                                window_script.name,
+                                window_script.script_args,
+                                window_script.save,
+                            )
+                            .unwrap();
+                            let scripts = get_scripts_string().expect("Failed to get scripts");
+                            save_script_file
+                                .get_webview_window(WINDOW_LABEL)
+                                .unwrap()
+                                .emit_to(WINDOW_LABEL, "scripts", scripts)
+                                .expect("Failed to emit event");
+                        }
+                        Err(e) => eprintln!("Failed to parse event payload: {}", e),
                     }
-                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
-                }
-            });
+                });
 
-            app.listen("start_script", move |event| {
-                let value = event.payload();
-                match serde_json::from_str::<Script>(value) {
-                    Ok(window_script) => {
-                        start_script(&Script {
-                            visibility: window_script.visibility,
-                            arguments: window_script.arguments,
-                            path: window_script.path,
-                        })
-                        .unwrap();
+                app.listen("start_script", move |event| {
+                    let value = event.payload();
+                    match serde_json::from_str::<Script>(value) {
+                        Ok(window_script) => {
+                            start_script(&Script {
+                                visibility: window_script.visibility,
+                                arguments: window_script.arguments,
+                                path: window_script.path,
+                            })
+                            .unwrap();
+                        }
+                        Err(e) => eprintln!("Failed to parse event payload: {}", e),
                     }
-                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
-                }
-            });
+                });
 
-            app.listen("stop_script", move |event| {
-                let payload = event.payload().to_string();
-                let path = payload.trim_start_matches('"').trim_end_matches('"');
-                let name = Path::new(path).file_name().unwrap().to_str().unwrap();
-                stop_script(name).unwrap();
-            });
+                app.listen("stop_script", move |event| {
+                    let payload = event.payload().to_string();
+                    let path = payload.trim_start_matches('"').trim_end_matches('"');
+                    let name = Path::new(path).file_name().unwrap().to_str().unwrap();
+                    stop_script(name).unwrap();
+                });
 
-            app.listen("add_script", move |event| {
-                let payload = event.payload();
-                match serde_json::from_str::<AddFile>(payload) {
-                    Ok(value) => {
-                        let path = value.path;
-                        add_script_to_disk(path);
+                app.listen("add_script", move |event| {
+                    let payload = event.payload();
+                    match serde_json::from_str::<AddFile>(payload) {
+                        Ok(value) => {
+                            let path = value.path;
+                            add_script_to_disk(path);
 
-                        let scripts = get_scripts_string().expect("Failed to get scripts");
-                        // Use the app_handle to get the window by its label
-                        add_script_file
-                            .get_webview_window(WINDOW_LABEL)
-                            .unwrap()
-                            .emit_to(WINDOW_LABEL, "scripts", scripts)
-                            .expect("Failed to emit event");
+                            let scripts = get_scripts_string().expect("Failed to get scripts");
+                            // Use the app_handle to get the window by its label
+                            add_script_file
+                                .get_webview_window(WINDOW_LABEL)
+                                .unwrap()
+                                .emit_to(WINDOW_LABEL, "scripts", scripts)
+                                .expect("Failed to emit event");
+                        }
+                        Err(e) => eprintln!("Failed to parse event payload: {}", e),
                     }
-                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
-                }
-            });
+                });
 
-            app.listen("remove_script", move |event| {
-                let payload = event.payload();
-                match serde_json::from_str::<RemoveFile>(payload) {
-                    Ok(value) => {
-                        let name = value.name;
-                        let path = value.path;
-                        let remove_from_disk = value.remove_from_disk;
-                        remove_script(name, path, remove_from_disk).unwrap();
+                app.listen("remove_script", move |event| {
+                    let payload = event.payload();
+                    match serde_json::from_str::<RemoveFile>(payload) {
+                        Ok(value) => {
+                            let name = value.name;
+                            let path = value.path;
+                            let remove_from_disk = value.remove_from_disk;
+                            remove_script(name, path, remove_from_disk).unwrap();
 
-                        let scripts = get_scripts_string().expect("Failed to get scripts");
-                        // Use the app_handle to get the window by its label
-                        remove_script_file
-                            .get_webview_window(WINDOW_LABEL)
-                            .unwrap()
-                            .emit_to(WINDOW_LABEL, "scripts", scripts)
-                            .expect("Failed to emit event");
+                            let scripts = get_scripts_string().expect("Failed to get scripts");
+                            // Use the app_handle to get the window by its label
+                            remove_script_file
+                                .get_webview_window(WINDOW_LABEL)
+                                .unwrap()
+                                .emit_to(WINDOW_LABEL, "scripts", scripts)
+                                .expect("Failed to emit event");
+                        }
+                        Err(e) => eprintln!("Failed to parse event payload: {}", e),
                     }
-                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
-                }
-            });
+                });
 
-            app.listen("create_audio_from_file", move |event| {
-                let value = event.payload();
-                match serde_json::from_str::<AudioFile>(value) {
-                    Ok(audio_payload) => {
-                        let file = audio_payload.file;
-                        let name = audio_payload.name;
-                        let voice = audio_payload.voice;
+                app.listen("create_audio_from_file", move |event| {
+                    let value = event.payload();
+                    match serde_json::from_str::<AudioFile>(value) {
+                        Ok(audio_payload) => {
+                            let file = audio_payload.file;
+                            let name = audio_payload.name;
+                            let voice = audio_payload.voice;
 
-                        // Load config for pitch, rate, and volume
-                        let config = tts::config::load_config();
+                            // Load config for pitch, rate, and volume
+                            let config = tts::config::load_config();
 
-                        let text = std::fs::read_to_string(file).unwrap();
-                        generate_tts_synthesis(
-                            text.as_str(),
-                            name.as_str(),
-                            voice.as_str(),
-                            config.pitch,
-                            config.rate,
-                            config.volume,
-                        )
-                        .unwrap();
-
-                        let window = create_file_hvoices_handle
-                            .get_webview_window(WINDOW_LABEL)
+                            let text = std::fs::read_to_string(file).unwrap();
+                            generate_tts_synthesis(
+                                text.as_str(),
+                                name.as_str(),
+                                voice.as_str(),
+                                config.pitch,
+                                config.rate,
+                                config.volume,
+                            )
                             .unwrap();
 
-                        window
-                            .emit_to(WINDOW_LABEL, "create_audio_response", true)
-                            .expect("Failed to emit event");
+                            let window = create_file_hvoices_handle
+                                .get_webview_window(WINDOW_LABEL)
+                                .unwrap();
+
+                            window
+                                .emit_to(WINDOW_LABEL, "create_audio_response", true)
+                                .expect("Failed to emit event");
+                        }
+                        Err(e) => eprintln!("Failed to parse event payload: {}", e),
                     }
-                    Err(e) => eprintln!("Failed to parse event payload: {}", e),
+                });
+
+                app.listen("open_export_folder", move |_| {
+                    if let Err(e) = open_in_export_folder() {
+                        eprintln!("Failed to open export folder: {}", e);
+                    }
+                });
+
+                app.listen("update_play_mode_text", move |event| {
+                    let payload = event.payload().to_string();
+                    let text = payload.trim_start_matches('"').trim_end_matches('"');
+                    match tts::config::update_play_mode_text(text, false) {
+                        Ok(_) => println!("✅ Updated play mode text in config"),
+                        Err(e) => eprintln!("Failed to update play mode text: {}", e),
+                    }
+                });
+
+                println!("✅ Normal mode: Application setup completed successfully");
+            } else {
+                println!("✅ Background mode: Minimal setup completed");
+            }
+
+            // Handle API server startup - regardless of mode
+            if start_api {
+                println!("🌐 Starting API server...");
+                tauri::async_runtime::spawn(async move {
+                    start_api_server(api_server_handle).await;
+                });
+
+                // Only emit API status event if we're in normal mode with UI
+                if !background_mode {
+                    if let Some(window) = app_handle.get_webview_window(WINDOW_LABEL) {
+                        // Load the configuration to get the port
+                        let tts_config = tts::config::load_config();
+                        window
+                            .emit_to(
+                                WINDOW_LABEL,
+                                "api_server_status",
+                                serde_json::json!({
+                                    "running": true,
+                                    "port": tts_config.api_port
+                                }),
+                            )
+                            .unwrap_or_else(|e| {
+                                eprintln!("Failed to emit API server status: {}", e);
+                            });
+                    }
                 }
-            });
-
-            app.listen("open_export_folder", move |_| {
-                if let Err(e) = open_in_export_folder() {
-                    eprintln!("Failed to open export folder: {}", e);
+            } else if !background_mode {
+                // Only emit that API is not running if in normal mode with UI
+                if let Some(window) = app_handle.get_webview_window(WINDOW_LABEL) {
+                    // Load the configuration to get the port
+                    let tts_config = tts::config::load_config();
+                    window
+                        .emit_to(
+                            WINDOW_LABEL,
+                            "api_server_status",
+                            serde_json::json!({
+                                "running": false,
+                                "port": tts_config.api_port
+                            }),
+                        )
+                        .unwrap_or_else(|e| {
+                            eprintln!("Failed to emit API server status: {}", e);
+                        });
                 }
-            });
-
-            app.listen("update_play_mode_text", move |event| {
-                let payload = event.payload().to_string();
-                let text = payload.trim_start_matches('"').trim_end_matches('"');
-                match tts::config::update_play_mode_text(text, false) {
-                    Ok(_) => println!("✅ Updated play mode text in config"),
-                    Err(e) => eprintln!("Failed to update play mode text: {}", e),
-                }
-            });
-
-            println!("Application setup completed successfully");
-
-            // Start the API server in a separate task
-            tauri::async_runtime::spawn(async move {
-                start_api_server(api_server_handle).await;
-            });
+            }
 
             Ok(())
-        })
+        });
+
+    let _ = builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

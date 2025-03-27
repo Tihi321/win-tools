@@ -16,6 +16,35 @@ Make and exe or bat file easy to use, with this custom ui
 
 Experience the ultimate convenience with TTS Audio Creator, the must-have program for converting text or text files into speech audio in your desired language. Designed with user-friendliness and efficiency in mind, TTS Audio Creator simplifies the process of generating high-quality audio from written content.
 
+#### API Server
+
+The TTS Audio Creator includes an optional API server that allows you to send text-to-speech requests programmatically. By default, the API server is not started to minimize resource usage. To start the application with the API server enabled, use the `--api` flag:
+
+```bash
+# For development
+yarn tauri dev -- --api
+
+# For production
+yarn tauri build
+./path/to/win-tools.exe --api
+```
+
+When the API server is running, you can send POST requests to `http://127.0.0.1:<port>/tts` with JSON payload containing a `text` field to generate and play audio.
+
+#### Background Mode
+
+If you only need the API server functionality without the UI, you can run the application in background mode:
+
+```bash
+# For development
+yarn tauri dev -- --background
+
+# For production
+./path/to/win-tools.exe --background
+```
+
+Background mode automatically enables the API server and runs without showing any UI windows, making it perfect for server environments or when you want to minimize resource usage. This mode works on all platforms (Windows, macOS, and Linux) and is ideal for running the app as a service or in unattended environments.
+
 ### API Tester
 
 API Tester is a tool that allows you to test the API endpoints of your server. It's a great way to learn how to use an API and also to find out what kind of data it returns.

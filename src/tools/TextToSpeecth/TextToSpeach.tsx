@@ -50,6 +50,11 @@ interface AudioPlaybackStatus {
   file: string;
 }
 
+interface ApiServerStatus {
+  running: boolean;
+  port: number;
+}
+
 export const TextToSpeach = () => {
   const [voices, setVoices] = createSignal<VoicesList>([]);
   const [selectedVoice, setSelectedVoice] = createSignal("");
@@ -71,6 +76,8 @@ export const TextToSpeach = () => {
   const [currentPlayingFile, setCurrentPlayingFile] = createSignal("");
   // Add API port signal
   const [apiPort, setApiPort] = createSignal(7891);
+  // Add API server status
+  const [apiServerRunning, setApiServerRunning] = createSignal(false);
   // Update server information to use the port from state
   const serverInfo = createMemo(() => ({
     url: `http://127.0.0.1:${apiPort()}`,
@@ -138,6 +145,25 @@ export const TextToSpeach = () => {
       if (event.payload) {
         setText(event.payload);
         setLastText(event.payload);
+      }
+    });
+
+    return () => {
+      unlisten();
+    };
+  });
+
+  // Listen for API server status updates from the backend
+  createEffect(async () => {
+    const unlisten = await listen<ApiServerStatus>("api_server_status", (event) => {
+      if (event.payload) {
+        setApiServerRunning(event.payload.running);
+        setApiPort(event.payload.port);
+
+        if (event.payload.running) {
+          setNotificationMessage(`API server running on port ${event.payload.port}`);
+          setTimeout(() => setNotificationMessage(""), 5000); // Clear after 5 seconds
+        }
       }
     });
 
@@ -424,15 +450,13 @@ export const TextToSpeach = () => {
         <Box
           sx={{
             position: "fixed",
-            top: "20px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            backgroundColor: "#2196f3",
+            top: "16px",
+            right: "16px",
+            padding: "8px 16px",
+            backgroundColor: "#4caf50",
             color: "white",
-            padding: "10px 20px",
             borderRadius: "4px",
             zIndex: 9999,
-            boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
           }}
         >
           {notificationMessage()}
@@ -540,52 +564,54 @@ export const TextToSpeach = () => {
                     />
                   </Box>
                 </Box>
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    padding: 2,
-                    backgroundColor: "#f5f5f5",
-                    borderRadius: 1,
-                    fontSize: "0.8rem",
-                    alignSelf: "center",
-                    minWidth: "190px",
-                  }}
-                >
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    API Server
-                  </Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
-                    <Typography variant="caption" sx={{ mr: 1 }}>
-                      Port:
+                {apiServerRunning() && (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      padding: 2,
+                      backgroundColor: "#f5f5f5",
+                      borderRadius: 1,
+                      fontSize: "0.8rem",
+                      alignSelf: "center",
+                      minWidth: "190px",
+                    }}
+                  >
+                    <Typography variant="subtitle2" fontWeight="bold">
+                      API Server
                     </Typography>
-                    <TextField
-                      size="small"
-                      variant="outlined"
-                      type="number"
-                      inputProps={{
-                        min: 1024,
-                        max: 65535,
-                        style: { padding: "4px 8px" },
-                      }}
-                      value={apiPort()}
-                      onChange={(e) => {
-                        const port = parseInt(e.target.value);
-                        if (port >= 1024 && port <= 65535) {
-                          setApiPort(port);
-                          saveApiPort(port);
-                        }
-                      }}
-                      sx={{ width: "80px" }}
-                    />
+                    <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                      <Typography variant="caption" sx={{ mr: 1 }}>
+                        Port:
+                      </Typography>
+                      <TextField
+                        size="small"
+                        variant="outlined"
+                        type="number"
+                        inputProps={{
+                          min: 1024,
+                          max: 65535,
+                          style: { padding: "4px 8px" },
+                        }}
+                        value={apiPort()}
+                        onChange={(e) => {
+                          const port = parseInt(e.target.value);
+                          if (port >= 1024 && port <= 65535) {
+                            setApiPort(port);
+                            saveApiPort(port);
+                          }
+                        }}
+                        sx={{ width: "80px" }}
+                      />
+                    </Box>
+                    <Typography variant="caption">
+                      {serverInfo().url}
+                      {serverInfo().endpoint}
+                    </Typography>
+                    <Typography variant="caption">POST {'{"text":"Your text"}'}</Typography>
                   </Box>
-                  <Typography variant="caption">
-                    {serverInfo().url}
-                    {serverInfo().endpoint}
-                  </Typography>
-                  <Typography variant="caption">POST {'{"text":"Your text"}'}</Typography>
-                </Box>
+                )}
               </Box>
             </Box>
           </Main>

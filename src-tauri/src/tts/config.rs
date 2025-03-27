@@ -17,6 +17,7 @@ pub struct TtsConfig {
     pub rate: f32,
     pub volume: f32,
     pub api_port: u16,
+    pub api_enabled: bool,
 }
 
 impl Default for TtsConfig {
@@ -30,6 +31,7 @@ impl Default for TtsConfig {
             rate: 1.0,
             volume: 1.0,
             api_port: 7891,
+            api_enabled: false,
         }
     }
 }
@@ -165,5 +167,11 @@ pub fn update_volume(volume: f32) -> Result<(), Box<dyn std::error::Error + Send
 pub fn update_api_port(port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut config = load_config();
     config.api_port = port;
+    save_config(&config)
+}
+
+pub fn update_api_enabled(enabled: bool) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut config = load_config();
+    config.api_enabled = enabled;
     save_config(&config)
 }
