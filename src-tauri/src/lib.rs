@@ -379,7 +379,26 @@ fn set_tts_api_port(port: u16) -> Result<(), String> {
 #[tauri::command]
 fn is_api_server_running() -> bool {
     let config = tts::config::load_config();
+    println!(
+        "API server status check: api_enabled={}",
+        config.api_enabled
+    );
     config.api_enabled
+}
+
+#[tauri::command]
+fn get_api_server_status() -> serde_json::Value {
+    let config = tts::config::load_config();
+    println!(
+        "Detailed API server status check: api_enabled={}, port={}",
+        config.api_enabled, config.api_port
+    );
+
+    serde_json::json!({
+        "running": config.api_enabled,
+        "port": config.api_port,
+        "api_url": format!("http://127.0.0.1:{}/tts", config.api_port)
+    })
 }
 
 // Add API server module to lib.rs
@@ -667,11 +686,33 @@ pub fn run(args: Vec<String>) {
         )
         .get_matches_from(args);
 
-    // Determine if API server should start
-    let start_api = matches.is_present("api");
+    // Check both command line arguments and environment variables
+    let api_env = std::env::var("ENABLE_API")
+        .map(|val| val == "1" || val.to_lowercase() == "true")
+        .unwrap_or(false);
+    let background_env = std::env::var("BACKGROUND_MODE")
+        .map(|val| val == "1" || val.to_lowercase() == "true")
+        .unwrap_or(false);
 
-    // Determine if we should run in background mode
-    let background_mode = matches.is_present("background");
+    // Determine if API server should start (either from CLI args or env var)
+    let start_api = matches.is_present("api") || api_env;
+
+    // Determine if we should run in background mode (either from CLI args or env var)
+    let background_mode = matches.is_present("background") || background_env;
+
+    println!("🚀 Starting application with options:");
+    println!(
+        "   - API Server: {}",
+        if start_api { "Enabled" } else { "Disabled" }
+    );
+    println!(
+        "   - UI Mode: {}",
+        if background_mode {
+            "Background"
+        } else {
+            "Normal"
+        }
+    );
 
     // In background mode, we always start the API server
     let start_api = start_api || background_mode;
@@ -722,6 +763,7 @@ pub fn run(args: Vec<String>) {
             stop_audio_playback,
             get_audio_playback_status,
             is_api_server_running,
+            get_api_server_status,
         ])
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {

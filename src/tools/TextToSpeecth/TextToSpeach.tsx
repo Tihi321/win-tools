@@ -123,6 +123,9 @@ export const TextToSpeach = () => {
 
     // Get initial audio playback status
     getAudioPlaybackStatus();
+
+    // Check API server status
+    checkApiServerStatus();
   });
 
   // Listen for audio playback status updates from the backend
@@ -155,21 +158,54 @@ export const TextToSpeach = () => {
 
   // Listen for API server status updates from the backend
   createEffect(async () => {
-    const unlisten = await listen<ApiServerStatus>("api_server_status", (event) => {
-      if (event.payload) {
-        setApiServerRunning(event.payload.running);
-        setApiPort(event.payload.port);
+    console.log("Setting up api_server_status listener");
 
-        if (event.payload.running) {
-          setNotificationMessage(`API server running on port ${event.payload.port}`);
-          setTimeout(() => setNotificationMessage(""), 5000); // Clear after 5 seconds
+    try {
+      const unlisten = await listen<ApiServerStatus>("api_server_status", (event) => {
+        console.log("API server status event received:", event.payload);
+
+        if (event.payload) {
+          // Ensure we're storing proper boolean values
+          const isRunning = Boolean(event.payload.running);
+          console.log("Setting API running state to:", isRunning, typeof isRunning);
+          setApiServerRunning(isRunning);
+          setApiPort(event.payload.port);
+
+          console.log(
+            `API server status updated: running=${isRunning}, port=${event.payload.port}`
+          );
+
+          if (isRunning) {
+            setNotificationMessage(`API server running on port ${event.payload.port}`);
+            setTimeout(() => setNotificationMessage(""), 5000); // Clear after 5 seconds
+          }
         }
-      }
-    });
+      });
 
-    return () => {
-      unlisten();
-    };
+      // Check API server status on component mount
+      try {
+        const isRunning = await invoke<boolean>("is_api_server_running");
+        console.log("Initial API server status check:", isRunning, typeof isRunning);
+
+        // Ensure we're setting a proper boolean value
+        const isRunningBool = Boolean(isRunning);
+        console.log("Setting initial API running state to:", isRunningBool, typeof isRunningBool);
+        setApiServerRunning(isRunningBool);
+
+        const config = await invoke<TtsConfig>("get_tts_config");
+        setApiPort(config.api_port);
+      } catch (error) {
+        console.error("Failed to check initial API server status:", error);
+      }
+
+      return () => {
+        console.log("Cleaning up api_server_status listener");
+        unlisten();
+      };
+    } catch (error) {
+      console.error("Error setting up api_server_status listener:", error);
+      return () => {};
+    }
   });
 
   onCleanup(() => {
@@ -441,6 +477,37 @@ export const TextToSpeach = () => {
     const checked = !event.target.checked;
     setUseFile(checked);
     saveUseFileConfig(checked);
+  };
+
+  // Add function to check API server status
+  const checkApiServerStatus = async () => {
+    try {
+      console.log("Checking detailed API server status...");
+
+      // Use the new detailed API status command
+      const apiStatus = await invoke<{ running: boolean; port: number; api_url: string }>(
+        "get_api_server_status"
+      );
+      console.log("Detailed API server status:", apiStatus);
+
+      // Set the state based on the response
+      setApiServerRunning(apiStatus.running);
+      setApiPort(apiStatus.port);
+
+      // Display a notification with the current status
+      const statusMessage = apiStatus.running
+        ? `API server is running on port ${apiStatus.port}`
+        : "API server is not running";
+      setNotificationMessage(statusMessage);
+      setTimeout(() => setNotificationMessage(""), 3000);
+
+      return apiStatus.running;
+    } catch (error) {
+      console.error("Failed to check API server status:", error);
+      setNotificationMessage("Error checking API server status");
+      setTimeout(() => setNotificationMessage(""), 3000);
+      return false;
+    }
   };
 
   return (

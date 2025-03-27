@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview",
-    "tauri": "tauri",
+    "check": "tsc --noEmit",
     "start": "tauri dev",
+    "start:api": "cross-env ENABLE_API=true tauri dev",
+    "start:background:api": "cross-env BACKGROUND_MODE=true ENABLE_API=true tauri dev",
     "tauri-build": "tauri build",
     "tauri-build-debug": "tauri build --debug"
   },
@@ -27,6 +29,7 @@
     "@tauri-apps/cli": "2.4.0",
     "@types/lodash": "^4.14.201",
     "@types/uuid": "^9.0.7",
+    "cross-env": "^7.0.3",
     "typescript": "^5.4.5",
     "vite": "^5.3.1",
     "vite-plugin-solid": "^2.11.6"

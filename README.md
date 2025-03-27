@@ -18,14 +18,29 @@ Experience the ultimate convenience with TTS Audio Creator, the must-have progra
 
 #### API Server
 
-The TTS Audio Creator includes an optional API server that allows you to send text-to-speech requests programmatically. By default, the API server is not started to minimize resource usage. To start the application with the API server enabled, use the `--api` flag:
+The TTS Audio Creator includes an optional API server that allows you to send text-to-speech requests programmatically. By default, the API server is not started to minimize resource usage.
+
+##### Development Mode
+
+For development, you can use environment variables:
 
 ```bash
-# For development
-yarn tauri dev -- --api
+# Using npm scripts (recommended)
+yarn start:api
 
-# For production
+# Or manually with environment variables
+ENABLE_API=true yarn tauri dev
+```
+
+##### Production Mode
+
+For production, use command line arguments:
+
+```bash
+# Build the application
 yarn tauri build
+
+# Run with API server enabled
 ./path/to/win-tools.exe --api
 ```
 
@@ -33,13 +48,26 @@ When the API server is running, you can send POST requests to `http://127.0.0.1:
 
 #### Background Mode
 
-If you only need the API server functionality without the UI, you can run the application in background mode:
+If you only need the API server functionality without the UI, you can run the application in background mode.
+
+##### Development Mode
+
+For development, use the provided npm script:
 
 ```bash
-# For development
-yarn tauri dev -- --background
+# Background mode only
+yarn start-background
 
-# For production
+# Background mode with API server
+yarn start:background:api
+```
+
+##### Production Mode
+
+For production, use command line arguments:
+
+```bash
+# Run in background mode (also enables API server)
 ./path/to/win-tools.exe --background
 ```
 
